@@ -40,6 +40,8 @@ export const envSchema = z
     UPLOAD_DIR: z.string().default("storage/evidence"),
     UPLOAD_MAX_FILE_MB: z.coerce.number().min(0.1).default(5),
     UPLOAD_MAX_FILES_PER_REPORT: z.coerce.number().int().min(1).default(5),
+    // Building cover photos (public once set)
+    COVER_DIR: z.string().default("storage/covers"),
 
     // Rate limiting
     THROTTLE_TTL_SECONDS: z.coerce.number().default(60),

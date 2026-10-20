@@ -83,9 +83,10 @@ export const dataSourceOptions: DataSourceOptions = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
   schema: "public",
+  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
   entities: [__dirname + "/../modules/**/entities/*.entity.{ts,js}"],
   namingStrategy: new SnakeNamingStrategy(),
-  migrations: [__dirname + "/../database/migrations/*.ts"],
+  migrations: [__dirname + "/../database/migrations/*.{ts,js}"],
   logging: process.env.NODE_DB_ENV
     ? process.env.NODE_DB_ENV == "development"
       ? false
