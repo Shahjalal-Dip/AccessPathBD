@@ -35,6 +35,31 @@ export class User {
   @Column({ default: true })
   isActive!: boolean;
 
+  @Column({ type: "timestamptz", nullable: true })
+  emailVerifiedAt!: Date | null;
+
+  @Column({ type: "varchar", length: 160, nullable: true })
+  affiliation!: string | null;
+
+  @Column({ type: "varchar", length: 160, nullable: true })
+  institution!: string | null;
+
+  @Column({ type: "varchar", length: 30, nullable: true })
+  phone!: string | null;
+
+  /** Display and accessibility preferences (Account Settings screen) */
+  @Column({ type: "varchar", length: 5, default: "en" })
+  preferredLanguage!: string;
+
+  @Column({ type: "varchar", length: 12, default: "standard" })
+  textSize!: string;
+
+  @Column({ default: false })
+  highContrast!: boolean;
+
+  @Column({ default: false })
+  reduceMotion!: boolean;
+
   @CreateDateColumn({ type: "timestamptz" })
   createdAt!: Date;
 
