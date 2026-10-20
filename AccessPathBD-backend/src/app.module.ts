@@ -8,9 +8,9 @@ import { RedisCacheModule } from "@/providers/cache/redis/redis-cache.module";
 import { AppController } from "@/src/app.controller";
 import { AppService } from "@/src/app.service";
 import { appConfig } from "@/config/app.config";
-
 import { AuditModule } from "@/modules/audit/audit.module";
 import { AuthModule } from "@/modules/auth/auth.module";
+import { MailModule } from "@/modules/mail/mail.service";
 import { UsersModule } from "@/modules/users/users.module";
 
 @Module({
@@ -25,6 +25,7 @@ import { UsersModule } from "@/modules/users/users.module";
         limit: appConfig.env.THROTTLE_LIMIT,
       },
     ]),
+    MailModule,
     AuditModule,
     UsersModule,
     AuthModule,

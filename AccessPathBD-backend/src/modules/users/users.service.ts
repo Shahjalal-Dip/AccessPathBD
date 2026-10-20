@@ -18,7 +18,20 @@ import { ListUsersQueryDto } from "@/modules/users/dto/user-admin.dto";
 
 export type PublicUser = Pick<
   User,
-  "id" | "fullName" | "email" | "role" | "isActive" | "createdAt"
+  | "id"
+  | "fullName"
+  | "email"
+  | "role"
+  | "isActive"
+  | "createdAt"
+  | "emailVerifiedAt"
+  | "affiliation"
+  | "institution"
+  | "phone"
+  | "preferredLanguage"
+  | "textSize"
+  | "highContrast"
+  | "reduceMotion"
 >;
 
 export const toPublicUser = (u: User): PublicUser => ({
@@ -28,6 +41,14 @@ export const toPublicUser = (u: User): PublicUser => ({
   role: u.role,
   isActive: u.isActive,
   createdAt: u.createdAt,
+  emailVerifiedAt: u.emailVerifiedAt,
+  affiliation: u.affiliation,
+  institution: u.institution,
+  phone: u.phone,
+  preferredLanguage: u.preferredLanguage,
+  textSize: u.textSize,
+  highContrast: u.highContrast,
+  reduceMotion: u.reduceMotion,
 });
 
 @Injectable()
@@ -54,10 +75,35 @@ export class UsersService {
       .getOne();
   }
 
+  /** Includes the password hash. Only password-change flows should call this. */
+  findForPassword(id: string) {
+    return this.users
+      .createQueryBuilder("u")
+      .addSelect("u.passwordHash")
+      .where("u.id = :id", { id })
+      .getOne();
+  }
+
+  async setPasswordHash(id: string, passwordHash: string) {
+    await this.users.update({ id }, { passwordHash });
+  }
+
+  async markEmailVerified(id: string) {
+    await this.users.update({ id }, { emailVerifiedAt: new Date() });
+  }
+
+  async updateProfile(id: string, patch: Partial<User>) {
+    const user = await this.mustFind(id);
+    Object.assign(user, patch);
+    await this.users.save(user);
+    return toPublicUser(user);
+  }
+
   async createContributor(data: {
     fullName: string;
     email: string;
     passwordHash: string;
+    affiliation?: string | null;
   }) {
     if (await this.findByEmail(data.email))
       throw new ConflictException("An account with this email already exists");
