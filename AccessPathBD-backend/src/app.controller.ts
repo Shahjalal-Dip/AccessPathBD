@@ -10,10 +10,10 @@ export class AppController {
     return this.appService.getHello();
   }
 
-  @Get('health')
+  @Get("health")
   healthCheck() {
-    // The middleware in main.ts will automatically 
+    // The middleware in main.ts will automatically
     // attach the CSRF cookies to this response.
-    return { status: 'ok', timestamp: new Date().toISOString() };
+    return { status: "ok", timestamp: new Date().toISOString() };
   }
 }

@@ -3,16 +3,24 @@ import {
   Controller,
   Get,
   HttpCode,
+  Patch,
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags, ApiBody} from "@nestjs/swagger";
+import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { appConfig } from "@/config/app.config";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { JwtGuard } from "@/common/guard";
 import { AuthUser } from "@/common/interfaces/auth-user.interface";
 import { AuthService } from "@/modules/auth/auth.service";
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  UpdateProfileDto,
+  VerifyEmailDto,
+} from "@/modules/auth/dto/account.dto";
 import { LoginDto, RegisterDto } from "@/modules/auth/dto/auth.dto";
 
 // Stricter limit on credential endpoints to slow brute-force attempts
@@ -27,7 +35,6 @@ export class AuthController {
 
   @Throttle(authThrottle)
   @Post("register")
-  @ApiBody({ type: RegisterDto }) 
   register(@Body() dto: RegisterDto) {
     return this.auth.register(dto);
   }
@@ -35,7 +42,6 @@ export class AuthController {
   @Throttle(authThrottle)
   @HttpCode(200)
   @Post("login")
-  @ApiBody({ type: LoginDto }) 
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
   }
@@ -54,5 +60,57 @@ export class AuthController {
   @Get("me")
   me(@CurrentUser() user: AuthUser) {
     return this.auth.me(user.id);
+  }
+
+  // ---- account settings
+  @ApiBearerAuth()
+  @UseGuards(JwtGuard)
+  @Patch("profile")
+  updateProfile(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
+    return this.auth.updateProfile(user.id, dto);
+  }
+
+  @Throttle(authThrottle)
+  @ApiBearerAuth()
+  @UseGuards(JwtGuard)
+  @HttpCode(200)
+  @Post("change-password")
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.auth.changePassword(user.id, dto);
+  }
+
+  // ---- password reset (public)
+  @Throttle(authThrottle)
+  @HttpCode(200)
+  @Post("forgot-password")
+  forgot(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto.email);
+  }
+
+  @Throttle(authThrottle)
+  @HttpCode(200)
+  @Post("reset-password")
+  reset(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto);
+  }
+
+  // ---- email verification
+  @Throttle(authThrottle)
+  @ApiBearerAuth()
+  @UseGuards(JwtGuard)
+  @HttpCode(200)
+  @Post("resend-verification")
+  resend(@CurrentUser() user: AuthUser) {
+    return this.auth.resendVerification(user.id);
+  }
+
+  @Throttle(authThrottle)
+  @HttpCode(200)
+  @Post("verify-email")
+  verify(@Body() dto: VerifyEmailDto) {
+    return this.auth.verifyEmail(dto.token);
   }
 }
