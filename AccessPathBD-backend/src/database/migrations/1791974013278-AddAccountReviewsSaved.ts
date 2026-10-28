@@ -5,13 +5,33 @@ export class AddAccountReviewsSaved1791974013278 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `CREATE TABLE "saved_buildings" ("user_id" uuid NOT NULL, "building_id" uuid NOT NULL, "saved_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_d572a1ab950d14366ebf9b11686" PRIMARY KEY ("user_id", "building_id"))`,
+      `CREATE TABLE "saved_buildings" (
+       "user_id" uuid NOT NULL, 
+       "building_id" uuid NOT NULL, 
+       "saved_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+       CONSTRAINT "PK_d572a1ab950d14366ebf9b11686" PRIMARY KEY ("user_id", "building_id"))`,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."review_status" AS ENUM('PENDING', 'APPROVED', 'REJECTED')`,
+      `CREATE TYPE "public"."review_status" 
+       AS ENUM('PENDING', 'APPROVED', 'REJECTED')`,
     );
     await queryRunner.query(
-      `CREATE TABLE "reviews" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "building_id" uuid NOT NULL, "user_id" uuid NOT NULL, "rating" smallint NOT NULL, "title" character varying(120), "body" text NOT NULL, "visit_date" date NOT NULL, "features_used" jsonb NOT NULL DEFAULT '[]', "status" "public"."review_status" NOT NULL DEFAULT 'PENDING', "moderator_note" text, "decided_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "CHK_reviews_rating" CHECK ("rating" BETWEEN 1 AND 5), CONSTRAINT "PK_231ae565c273ee700b283f15c1d" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "reviews" (
+      "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
+      "building_id" uuid NOT NULL, 
+      "user_id" uuid NOT NULL, 
+      "rating" smallint NOT NULL, 
+      "title" character varying(120), 
+      "body" text NOT NULL, 
+      "visit_date" date NOT NULL, 
+      "features_used" jsonb NOT NULL DEFAULT '[]', 
+      "status" "public"."review_status" NOT NULL DEFAULT 'PENDING',
+      "moderator_note" text, 
+      "decided_at" TIMESTAMP WITH TIME ZONE, 
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+      CONSTRAINT "CHK_reviews_rating" CHECK ("rating" BETWEEN 1 AND 5), 
+      CONSTRAINT "PK_231ae565c273ee700b283f15c1d" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_728447781a30bc3fcfe5c2f1cd" ON "reviews" ("user_id") `,
@@ -20,10 +40,19 @@ export class AddAccountReviewsSaved1791974013278 implements MigrationInterface {
       `CREATE INDEX "IDX_451b1b80bc370d243d47e826c1" ON "reviews" ("building_id", "status") `,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."auth_token_type" AS ENUM('PASSWORD_RESET', 'EMAIL_VERIFY')`,
+      `CREATE TYPE "public"."auth_token_type" 
+       AS ENUM('PASSWORD_RESET', 'EMAIL_VERIFY')`,
     );
     await queryRunner.query(
-      `CREATE TABLE "auth_tokens" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "user_id" uuid NOT NULL, "type" "public"."auth_token_type" NOT NULL, "token_hash" character varying(64) NOT NULL, "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, "used_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_41e9ddfbb32da18c4e85e45c2fd" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "auth_tokens" (
+       "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
+       "user_id" uuid NOT NULL, 
+       "type" "public"."auth_token_type" NOT NULL, 
+       "token_hash" character varying(64) NOT NULL, 
+       "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, 
+       "used_at" TIMESTAMP WITH TIME ZONE, 
+       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+       CONSTRAINT "PK_41e9ddfbb32da18c4e85e45c2fd" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_9691367d446cd8b18f462c191b" ON "auth_tokens" ("user_id") `,
