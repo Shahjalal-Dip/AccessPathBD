@@ -4,22 +4,45 @@ export class InitSchema1791855862011 implements MigrationInterface {
   name = "InitSchema1791855862011";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // uuid_generate_v4() is used for primary keys
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
     await queryRunner.query(
-      `CREATE TYPE "public"."user_role" AS ENUM('CONTRIBUTOR', 'MODERATOR', 'ADMIN')`,
+      `CREATE TYPE "public"."user_role" 
+       AS ENUM('CONTRIBUTOR', 'MODERATOR', 'ADMIN')`,
     );
     await queryRunner.query(
-      `CREATE TABLE "users" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "full_name" character varying(120) NOT NULL, "email" character varying(254) NOT NULL, "password_hash" character varying NOT NULL, "role" "public"."user_role" NOT NULL DEFAULT 'CONTRIBUTOR', "is_active" boolean NOT NULL DEFAULT true, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_a3ffb1c0c8416b9fc6f907b7433" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "users" (
+      "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
+      "full_name" character varying(120) NOT NULL, 
+      "email" character varying(254) NOT NULL, 
+      "password_hash" character varying NOT NULL, 
+      "role" "public"."user_role" NOT NULL DEFAULT 'CONTRIBUTOR', 
+      "is_active" boolean NOT NULL DEFAULT true, 
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+      CONSTRAINT "PK_a3ffb1c0c8416b9fc6f907b7433" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE UNIQUE INDEX "IDX_97672ac88f789774dd47f7c8be" ON "users" ("email") `,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."building_category" AS ENUM('ACADEMIC', 'LIBRARY', 'ADMINISTRATION', 'HEALTH', 'FOOD', 'RELIGIOUS', 'SPORTS', 'RESIDENTIAL', 'TRANSPORT', 'OTHER')`,
+      `CREATE TYPE "public"."building_category" 
+       AS ENUM('ACADEMIC', 'LIBRARY', 'ADMINISTRATION', 'HEALTH', 'FOOD', 'RELIGIOUS', 'SPORTS', 'RESIDENTIAL', 'TRANSPORT', 'OTHER')`,
     );
     await queryRunner.query(
-      `CREATE TABLE "buildings" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "name" character varying(200) NOT NULL, "description" text, "address" character varying(300) NOT NULL, "category" "public"."building_category" NOT NULL DEFAULT 'OTHER', "latitude" numeric(9,6), "longitude" numeric(9,6), "created_by_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "CHK_buildings_lng_range" CHECK ("longitude" IS NULL OR "longitude" BETWEEN -180 AND 180), CONSTRAINT "CHK_buildings_lat_range" CHECK ("latitude" IS NULL OR "latitude" BETWEEN -90 AND 90), CONSTRAINT "PK_bc65c1acce268c383e41a69003a" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "buildings" (
+      "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
+      "name" character varying(200) NOT NULL, 
+      "description" text, 
+      "address" character varying(300) NOT NULL, 
+      "category" "public"."building_category" NOT NULL DEFAULT 'OTHER', 
+      "latitude" numeric(9,6), 
+      "longitude" numeric(9,6), 
+      "created_by_id" uuid, 
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+      CONSTRAINT "CHK_buildings_lng_range" CHECK ("longitude" IS NULL OR "longitude" BETWEEN -180 AND 180), 
+      CONSTRAINT "CHK_buildings_lat_range" CHECK ("latitude" IS NULL OR "latitude" BETWEEN -90 AND 90), 
+      CONSTRAINT "PK_bc65c1acce268c383e41a69003a" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_eff730bb29eb27590788ac38a5" ON "buildings" ("category") `,
