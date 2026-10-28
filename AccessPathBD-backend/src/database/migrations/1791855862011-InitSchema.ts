@@ -51,16 +51,30 @@ export class InitSchema1791855862011 implements MigrationInterface {
       `CREATE UNIQUE INDEX "IDX_d3f0a1570e23b9f88a94be87bd" ON "buildings" ("name", "address") `,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."feature_type" AS ENUM('STEP_FREE_ENTRANCE', 'RAMP', 'LIFT', 'ACCESSIBLE_TOILET', 'ACCESSIBLE_PARKING', 'WIDE_DOORS', 'UNOBSTRUCTED_ROUTE', 'TACTILE_PAVING', 'OTHER')`,
+      `CREATE TYPE "public"."feature_type" 
+       AS ENUM('STEP_FREE_ENTRANCE', 'RAMP', 'LIFT', 'ACCESSIBLE_TOILET', 'ACCESSIBLE_PARKING', 'WIDE_DOORS', 'UNOBSTRUCTED_ROUTE', 'TACTILE_PAVING', 'OTHER')`,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."feature_status" AS ENUM('AVAILABLE', 'PARTIAL', 'UNAVAILABLE', 'UNKNOWN')`,
+      `CREATE TYPE "public"."feature_status" 
+       AS ENUM('AVAILABLE', 'PARTIAL', 'UNAVAILABLE', 'UNKNOWN')`,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."verification_status" AS ENUM('UNVERIFIED', 'VERIFIED', 'STALE', 'DISPUTED')`,
+      `CREATE TYPE "public"."verification_status" AS 
+       ENUM('UNVERIFIED', 'VERIFIED', 'STALE', 'DISPUTED')`,
     );
     await queryRunner.query(
-      `CREATE TABLE "accessibility_features" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "building_id" uuid NOT NULL, "feature_type" "public"."feature_type" NOT NULL, "status" "public"."feature_status" NOT NULL DEFAULT 'UNKNOWN', "verification_status" "public"."verification_status" NOT NULL DEFAULT 'UNVERIFIED', "details" text, "last_observed_at" TIMESTAMP WITH TIME ZONE, "last_verified_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_c567814ea8d68ea84de998aa37c" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "accessibility_features" (
+       "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
+       "building_id" uuid NOT NULL, 
+       "feature_type" "public"."feature_type" NOT NULL, 
+       "status" "public"."feature_status" NOT NULL DEFAULT 'UNKNOWN', 
+       "verification_status" "public"."verification_status" NOT NULL DEFAULT 'UNVERIFIED', 
+       "details" text, 
+       "last_observed_at" TIMESTAMP WITH TIME ZONE, 
+       "last_verified_at" TIMESTAMP WITH TIME ZONE, 
+       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+       "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+       CONSTRAINT "PK_c567814ea8d68ea84de998aa37c" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_db1b8f038e703ee75d40bd03a9" ON "accessibility_features" ("feature_type", "status") `,
@@ -69,13 +83,28 @@ export class InitSchema1791855862011 implements MigrationInterface {
       `CREATE UNIQUE INDEX "IDX_fbc2d6ae964299a62d5024f826" ON "accessibility_features" ("building_id", "feature_type") `,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."observation_status" AS ENUM('AVAILABLE', 'PARTIAL', 'UNAVAILABLE', 'UNKNOWN')`,
+      `CREATE TYPE "public"."observation_status" 
+       AS ENUM('AVAILABLE', 'PARTIAL', 'UNAVAILABLE', 'UNKNOWN')`,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."moderation_status" AS ENUM('PENDING', 'APPROVED', 'REJECTED', 'NEEDS_CLARIFICATION', 'WITHDRAWN', 'SUPERSEDED')`,
+      `CREATE TYPE "public"."moderation_status" 
+       AS ENUM('PENDING', 'APPROVED', 'REJECTED', 'NEEDS_CLARIFICATION', 'WITHDRAWN', 'SUPERSEDED')`,
     );
     await queryRunner.query(
-      `CREATE TABLE "reports" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "building_id" uuid NOT NULL, "feature_id" uuid NOT NULL, "submitted_by_id" uuid NOT NULL, "observation_status" "public"."observation_status" NOT NULL, "description" text NOT NULL, "observed_at" TIMESTAMP WITH TIME ZONE NOT NULL, "moderation_status" "public"."moderation_status" NOT NULL DEFAULT 'PENDING', "decided_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "CHK_reports_observation_not_unknown" CHECK ("observation_status" <> 'UNKNOWN'), CONSTRAINT "PK_d9013193989303580053c0b5ef6" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "reports" (
+       "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
+       "building_id" uuid NOT NULL, 
+       "feature_id" uuid NOT NULL, 
+       "submitted_by_id" uuid NOT NULL, 
+       "observation_status" "public"."observation_status" NOT NULL, 
+       "description" text NOT NULL, 
+       "observed_at" TIMESTAMP WITH TIME ZONE NOT NULL, 
+       "moderation_status" "public"."moderation_status" NOT NULL DEFAULT 'PENDING', 
+       "decided_at" TIMESTAMP WITH TIME ZONE, 
+       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+       "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+       CONSTRAINT "CHK_reports_observation_not_unknown" CHECK ("observation_status" <> 'UNKNOWN'), 
+       CONSTRAINT "PK_d9013193989303580053c0b5ef6" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_f3c3da90070b6d296e1bef19e5" ON "reports" ("submitted_by_id") `,
@@ -90,22 +119,46 @@ export class InitSchema1791855862011 implements MigrationInterface {
       `CREATE INDEX "IDX_2178b223187c00bc9590947ec8" ON "reports" ("feature_id", "moderation_status") `,
     );
     await queryRunner.query(
-      `CREATE TABLE "report_evidence" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "report_id" uuid NOT NULL, "file_name" character varying(80) NOT NULL, "original_name" character varying(120) NOT NULL, "mime_type" character varying(40) NOT NULL, "size_bytes" integer NOT NULL, "uploaded_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_80034d7b5ae16baaee975e041ba" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "report_evidence" (
+       "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
+       "report_id" uuid NOT NULL, 
+       "file_name" character varying(80) NOT NULL, 
+       "original_name" character varying(120) NOT NULL, 
+       "mime_type" character varying(40) NOT NULL, 
+       "size_bytes" integer NOT NULL, 
+       "uploaded_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+       CONSTRAINT "PK_80034d7b5ae16baaee975e041ba" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_a0a45277a6df8b2a29484d50f6" ON "report_evidence" ("report_id") `,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."moderation_decision" AS ENUM('APPROVED', 'REJECTED', 'NEEDS_CLARIFICATION', 'SUPERSEDED')`,
+      `CREATE TYPE "public"."moderation_decision" 
+       AS ENUM('APPROVED', 'REJECTED', 'NEEDS_CLARIFICATION', 'SUPERSEDED')`,
     );
     await queryRunner.query(
-      `CREATE TABLE "verifications" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "report_id" uuid NOT NULL, "reviewed_by_id" uuid NOT NULL, "decision" "public"."moderation_decision" NOT NULL, "decision_reason" text, "reviewed_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_2127ad1b143cf012280390b01d1" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "verifications" (
+      "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
+      "report_id" uuid NOT NULL, 
+      "reviewed_by_id" uuid NOT NULL, 
+      "decision" "public"."moderation_decision" NOT NULL, 
+      "decision_reason" text, 
+      "reviewed_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+      CONSTRAINT "PK_2127ad1b143cf012280390b01d1" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_8bee728e01d2277c828c8468a1" ON "verifications" ("report_id") `,
     );
     await queryRunner.query(
-      `CREATE TABLE "audit_logs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "actor_user_id" uuid, "action" character varying(64) NOT NULL, "entity_type" character varying(64) NOT NULL, "entity_id" character varying(64), "metadata" jsonb, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_1bb179d048bbc581caa3b013439" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "audit_logs" (
+       "id" uuid NOT NULL DEFAULT uuid_generate_v4(), 
+       "actor_user_id" uuid, 
+       "action" character varying(64) NOT NULL, 
+       "entity_type" character varying(64) NOT NULL, 
+       "entity_id" character varying(64), 
+       "metadata" jsonb, 
+       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), 
+       CONSTRAINT "PK_1bb179d048bbc581caa3b013439" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_2cd10fda8276bb995288acfbfb" ON "audit_logs" ("created_at") `,
