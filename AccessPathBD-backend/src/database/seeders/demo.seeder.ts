@@ -186,18 +186,18 @@ export class DemoSeeder implements Seeder {
         User,
         [
           {
-            fullName: "Demo Admin",
-            email: "admin@accesspath.test",
+            fullName: "Admin",
+            email: "admin@gmail.com",
             role: Role.ADMIN,
           },
           {
-            fullName: "Demo Moderator",
-            email: "moderator@accesspath.test",
+            fullName: "Moderator",
+            email: "moderator@gmail.com",
             role: Role.MODERATOR,
           },
           {
-            fullName: "Demo Contributor",
-            email: "contributor@accesspath.test",
+            fullName: "Contributor",
+            email: "contributor@gmail.com",
             role: Role.CONTRIBUTOR,
           },
         ].map((u) => em.create(User, { ...u, passwordHash })),
@@ -278,12 +278,12 @@ export class DemoSeeder implements Seeder {
         [
           {
             fullName: "Rafiq Hasan",
-            email: "rafiq@accesspath.test",
+            email: "rafiq@gmail.com",
             role: Role.CONTRIBUTOR,
           },
           {
             fullName: "Tanvir Mahmud",
-            email: "tanvir@accesspath.test",
+            email: "tanvir@gmail.com",
             role: Role.CONTRIBUTOR,
           },
         ].map((u) => em.create(User, { ...u, passwordHash })),
@@ -379,7 +379,7 @@ export class DemoSeeder implements Seeder {
 
     console.log(
       `Seeded 3 users, ${BUILDINGS.length} buildings, features and reports.\n` +
-        `  admin@accesspath.test / moderator@accesspath.test / contributor@accesspath.test\n` +
+        `  admin@gmail.com / moderator@gmail.com / contributor@gmail.com\n` +
         `  password: ${password}`,
     );
   }
