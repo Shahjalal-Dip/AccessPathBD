@@ -7,7 +7,7 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { appConfig } from "@/config/app.config";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
@@ -22,6 +22,7 @@ import {
   VerifyEmailDto,
 } from "@/modules/auth/dto/account.dto";
 import { LoginDto, RegisterDto } from "@/modules/auth/dto/auth.dto";
+import { options } from "axios";
 
 // Stricter limit on credential endpoints to slow brute-force attempts
 const authThrottle = {
@@ -35,6 +36,7 @@ export class AuthController {
 
   @Throttle(authThrottle)
   @Post("register")
+  @ApiBody({ type: RegisterDto })
   register(@Body() dto: RegisterDto) {
     return this.auth.register(dto);
   }
@@ -42,6 +44,7 @@ export class AuthController {
   @Throttle(authThrottle)
   @HttpCode(200)
   @Post("login")
+  @ApiBody({ type: LoginDto })
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
   }
@@ -66,6 +69,7 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtGuard)
   @Patch("profile")
+  @ApiBody({ type: UpdateProfileDto })
   updateProfile(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
     return this.auth.updateProfile(user.id, dto);
   }
@@ -75,6 +79,7 @@ export class AuthController {
   @UseGuards(JwtGuard)
   @HttpCode(200)
   @Post("change-password")
+  @ApiBody({ type: ChangePasswordDto })
   changePassword(
     @CurrentUser() user: AuthUser,
     @Body() dto: ChangePasswordDto,
@@ -86,6 +91,7 @@ export class AuthController {
   @Throttle(authThrottle)
   @HttpCode(200)
   @Post("forgot-password")
+  @ApiBody({ type: ForgotPasswordDto })
   forgot(@Body() dto: ForgotPasswordDto) {
     return this.auth.forgotPassword(dto.email);
   }
@@ -93,6 +99,7 @@ export class AuthController {
   @Throttle(authThrottle)
   @HttpCode(200)
   @Post("reset-password")
+  @ApiBody({ type: ResetPasswordDto })
   reset(@Body() dto: ResetPasswordDto) {
     return this.auth.resetPassword(dto);
   }
@@ -110,6 +117,7 @@ export class AuthController {
   @Throttle(authThrottle)
   @HttpCode(200)
   @Post("verify-email")
+  @ApiBody({ type: VerifyEmailDto })
   verify(@Body() dto: VerifyEmailDto) {
     return this.auth.verifyEmail(dto.token);
   }
