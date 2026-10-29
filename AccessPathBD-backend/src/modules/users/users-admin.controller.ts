@@ -8,7 +8,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { Roles } from "@/common/decorators/roles.decorator";
 import { Role } from "@/common/enums/role.enum";
@@ -35,6 +35,7 @@ export class UsersAdminController {
   }
 
   @Patch(":id/role")
+  @ApiBody({type : UpdateUserRoleDto})
   changeRole(
     @CurrentUser() actor: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
@@ -44,6 +45,7 @@ export class UsersAdminController {
   }
 
   @Patch(":id/status")
+  @ApiBody({type : UpdateUserStatusDto})
   setStatus(
     @CurrentUser() actor: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
