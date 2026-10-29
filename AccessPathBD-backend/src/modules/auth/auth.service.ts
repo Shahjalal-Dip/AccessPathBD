@@ -34,7 +34,6 @@ const emptyToNull = (v?: string) =>
 
 @Injectable()
 export class AuthService {
-  // Used so "unknown email" takes as long as "wrong password" (no user enumeration by timing)
   private dummyHash?: Promise<string>;
 
   constructor(
@@ -46,7 +45,6 @@ export class AuthService {
     @InjectRepository(AuthToken) private readonly tokens: Repository<AuthToken>,
   ) {}
 
-  // ----------------------------------------------------------- sign up / in
   async register(dto: RegisterDto) {
     const passwordHash = await argon2.hash(dto.password, {
       type: argon2.argon2id,
@@ -88,7 +86,6 @@ export class AuthService {
     return toPublicUser(user);
   }
 
-  // --------------------------------------------------------------- account
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const patch: Partial<User> = {};
     if (dto.fullName !== undefined) patch.fullName = dto.fullName;
@@ -131,8 +128,7 @@ export class AuthService {
     return { message: "Password updated" };
   }
 
-  // -------------------------------------------------------- password reset
-  /** Always answers the same way, whether or not the email exists. */
+
   async forgotPassword(email: string) {
     const user = await this.users.findByEmail(email);
     if (user?.isActive) {
@@ -171,7 +167,7 @@ export class AuthService {
     return { message: "Password reset. You can now sign in." };
   }
 
-  // ---------------------------------------------------- email verification
+
   async sendVerification(user: User) {
     if (user.emailVerifiedAt) return;
     const token = await this.createToken(
@@ -201,8 +197,6 @@ export class AuthService {
     return { message: "Email verified" };
   }
 
-  // --------------------------------------------------------------- helpers
-  /** Creates a token, invalidating older unused ones of the same type. Returns the raw token (emailed, never stored). */
   private async createToken(
     userId: string,
     type: AuthTokenType,

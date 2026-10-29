@@ -22,7 +22,6 @@ import {
   VerifyEmailDto,
 } from "@/modules/auth/dto/account.dto";
 import { LoginDto, RegisterDto } from "@/modules/auth/dto/auth.dto";
-import { options } from "axios";
 
 // Stricter limit on credential endpoints to slow brute-force attempts
 const authThrottle = {
@@ -65,7 +64,6 @@ export class AuthController {
     return this.auth.me(user.id);
   }
 
-  // ---- account settings
   @ApiBearerAuth()
   @UseGuards(JwtGuard)
   @Patch("profile")
@@ -87,7 +85,6 @@ export class AuthController {
     return this.auth.changePassword(user.id, dto);
   }
 
-  // ---- password reset (public)
   @Throttle(authThrottle)
   @HttpCode(200)
   @Post("forgot-password")
@@ -104,7 +101,6 @@ export class AuthController {
     return this.auth.resetPassword(dto);
   }
 
-  // ---- email verification
   @Throttle(authThrottle)
   @ApiBearerAuth()
   @UseGuards(JwtGuard)

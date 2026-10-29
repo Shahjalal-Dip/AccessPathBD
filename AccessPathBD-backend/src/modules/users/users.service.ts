@@ -66,7 +66,6 @@ export class UsersService {
     return this.users.findOne({ where: { email: email.toLowerCase() } });
   }
 
-  /** Includes the password hash. Only the login flow should call this. */
   findForLogin(email: string) {
     return this.users
       .createQueryBuilder("u")
@@ -75,7 +74,6 @@ export class UsersService {
       .getOne();
   }
 
-  /** Includes the password hash. Only password-change flows should call this. */
   findForPassword(id: string) {
     return this.users
       .createQueryBuilder("u")
