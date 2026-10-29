@@ -1,16 +1,10 @@
 import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { IsOptional, IsString, MaxLength } from "class-validator";
-import { PaginationQueryDto } from "@/common/dto/pagination-query.dto";
+import { AuditQueryDto } from "./dto/AuditQuery.dto";
 import { Roles } from "@/common/decorators/roles.decorator";
 import { Role } from "@/common/enums/role.enum";
 import { JwtGuard, RolesGuard } from "@/common/guard";
 import { AuditService } from "@/modules/audit/audit.service";
-
-class AuditQueryDto extends PaginationQueryDto {
-  @IsOptional() @IsString() @MaxLength(64) entityType?: string;
-  @IsOptional() @IsString() @MaxLength(64) action?: string;
-}
 
 @ApiTags("Admin")
 @ApiBearerAuth()
