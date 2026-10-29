@@ -8,11 +8,6 @@ import { UsersService } from "@/modules/users/users.service";
 
 export const blacklistKey = (jti: string) => `bl:${jti}`;
 
-/**
- * The token only proves identity (sub). The role is ALWAYS re-read from the
- * database, so role changes and deactivations apply immediately and a client
- * can never smuggle in its own role.
- */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
   constructor(
