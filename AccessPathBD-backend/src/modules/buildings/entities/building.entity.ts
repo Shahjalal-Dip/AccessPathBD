@@ -68,7 +68,6 @@ export class Building {
   })
   longitude!: number | null;
 
-  /** File name of the cover photo inside COVER_DIR (server-generated). Null = no cover. */
   @Column({ type: "varchar", length: 80, nullable: true })
   coverImage!: string | null;
 

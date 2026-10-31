@@ -36,7 +36,6 @@ import {
 export class BuildingsController {
   constructor(private readonly buildings: BuildingsService) {}
 
-  // ---- public ----
   @Get()
   list(@Query() q: ListBuildingsQueryDto) {
     return this.buildings.findAll(q);
@@ -52,7 +51,6 @@ export class BuildingsController {
     return this.buildings.getFeatures(id);
   }
 
-  /** Public image. Cacheable for a long time because the URL changes (?v=) when the photo changes. */
   @Get(":id/cover")
   async cover(
     @Param("id", ParseUUIDPipe) id: string,
@@ -66,7 +64,6 @@ export class BuildingsController {
     });
   }
 
-  // ---- admin only ----
   @ApiBearerAuth()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(Role.ADMIN)
