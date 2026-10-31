@@ -15,7 +15,6 @@ const EXT: Record<string, string> = {
 
 export const coverDir = () => resolve(process.cwd(), appConfig.env.COVER_DIR);
 
-/** One image, server-generated name, size cap, allow-listed type (content is re-checked in the service). */
 export const coverMulterOptions = (): MulterOptions => ({
   storage: diskStorage({
     destination: (_req, _file, cb) => {

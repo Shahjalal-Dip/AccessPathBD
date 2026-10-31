@@ -25,15 +25,32 @@ const trim = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
 
 export class CreateBuildingDto {
-  @Transform(trim) @IsString() @Length(2, 200) name!: string;
-  @Transform(trim) @IsString() @Length(3, 300) address!: string;
+  @Transform(trim) 
+  @IsString() 
+  @Length(2, 200) 
+  name!: string;
+
+  @Transform(trim) 
+  @IsString() 
+  @Length(3, 300) 
+  address!: string;
+
   @IsOptional()
   @Transform(trim)
   @IsString()
   @MaxLength(2000)
   description?: string;
-  @IsOptional() @IsEnum(BuildingCategory) category?: BuildingCategory;
-  @IsOptional() @Type(() => Number) @IsNumber() @IsLatitude() latitude?: number;
+
+  @IsOptional() 
+  @IsEnum(BuildingCategory) 
+  category?: BuildingCategory;
+
+  @IsOptional() 
+  @Type(() => Number) 
+  @IsNumber() 
+  @IsLatitude() 
+  latitude?: number;
+
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -44,11 +61,16 @@ export class CreateBuildingDto {
 export class UpdateBuildingDto extends PartialType(CreateBuildingDto) {}
 
 export class ListBuildingsQueryDto extends PaginationQueryDto {
-  @IsOptional() @Transform(trim) @IsString() @MaxLength(100) search?: string;
+  @IsOptional() 
+  @Transform(trim) 
+  @IsString() 
+  @MaxLength(100) 
+  search?: string;
 
-  @IsOptional() @IsEnum(BuildingCategory) category?: BuildingCategory;
+  @IsOptional() 
+  @IsEnum(BuildingCategory) 
+  category?: BuildingCategory;
 
-  /** Comma separated, e.g. features=STEP_FREE_ENTRANCE,LIFT (building must have ALL) */
   @IsOptional()
   @Transform(({ value }) =>
     typeof value === "string"
@@ -63,7 +85,6 @@ export class ListBuildingsQueryDto extends PaginationQueryDto {
   @IsEnum(FeatureType, { each: true })
   features?: FeatureType[];
 
-  /** Status each requested feature must have. Default AVAILABLE. */
   @IsOptional()
   @IsIn([
     FeatureStatus.AVAILABLE,
@@ -72,12 +93,19 @@ export class ListBuildingsQueryDto extends PaginationQueryDto {
   ])
   featureStatus?: FeatureStatus;
 
-  /** VERIFIED = verified AND fresh; STALE = verified but old. */
-  @IsOptional() @IsEnum(VerificationStatus) verification?: VerificationStatus;
 
-  @IsOptional() @IsIn(["name", "createdAt", "updatedAt"]) sortBy?:
+  @IsOptional() 
+  @IsEnum(VerificationStatus) 
+  verification?: VerificationStatus;
+
+  @IsOptional() 
+  @IsIn(["name", "createdAt", "updatedAt"]) 
+  sortBy?:
     | "name"
     | "createdAt"
     | "updatedAt";
-  @IsOptional() @IsIn(["ASC", "DESC"]) order?: "ASC" | "DESC";
+    
+  @IsOptional() 
+  @IsIn(["ASC", "DESC"]) 
+  order?: "ASC" | "DESC";
 }

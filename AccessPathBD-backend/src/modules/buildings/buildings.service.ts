@@ -41,15 +41,12 @@ const MIME: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-/** Public URL; `v` changes whenever the building row changes, which busts browser caches. */
 const coverUrl = (id: string, file: string | null, updatedAt: Date) =>
   file ? `/api/v1/buildings/${id}/cover?v=${updatedAt.getTime()}` : null;
 
 export type BuildingView = Omit<Building, "coverImage"> & {
-  /** Public URL of the cover photo (changes when the photo changes, so browsers refresh it). */
   coverImageUrl: string | null;
   features: FeatureView[];
-  /** Approved reviews only. average is null until the first review is published. */
   rating: { average: number | null; count: number };
 };
 
@@ -142,7 +139,6 @@ export class BuildingsService {
     const cutoff = freshnessCutoff(new Date(), appConfig.env.FRESHNESS_DAYS);
     const featureStatus = q.featureStatus ?? FeatureStatus.AVAILABLE;
 
-    // One EXISTS per requested feature => building must have ALL of them.
     const conditions: string[][] = (q.features ?? []).map((ft, i) => [
       `f.feature_type = :ft${i}`,
       `f.status = :featureStatus`,
@@ -191,10 +187,6 @@ export class BuildingsService {
     return paginated(await this.toViews(rows), total, q);
   }
 
-  /**
-   * Attach features and rating summary to buildings using two queries in total
-   * (not one per building). Also used by the "Saved buildings" list.
-   */
   async toViews(rows: Building[]): Promise<BuildingView[]> {
     const byBuilding = new Map<string, FeatureView[]>();
     if (!rows.length) return [];
@@ -217,7 +209,7 @@ export class BuildingsService {
     }));
   }
 
-  // ------------------------------------------------------------ cover photo
+
   async setCover(actor: AuthUser, id: string, file?: Express.Multer.File) {
     if (!file)
       throw new BadRequestException("Attach one image (form field name: file)");
@@ -240,7 +232,7 @@ export class BuildingsService {
       });
       return { coverImageUrl: coverUrl(b.id, b.coverImage, b.updatedAt) };
     } catch (e) {
-      await rm(file.path, { force: true }); // never keep a rejected upload
+      await rm(file.path, { force: true }); 
       throw e;
     }
   }
