@@ -29,12 +29,10 @@ export interface ApprovedReportInput {
 
 export interface ComputedFeatureState {
   status: FeatureStatus;
-  /** UNVERIFIED | VERIFIED | DISPUTED (never STALE) */
   verificationStatus: VerificationStatus;
   lastObservedAt: Date | null;
   lastVerifiedAt: Date | null;
   currentReportId: string | null;
-  /** Reports that disagree inside the conflict window (empty unless DISPUTED). */
   conflictingReportIds: string[];
 }
 
@@ -94,7 +92,6 @@ export function isStale(
   return lastObservedAt < freshnessCutoff(now, freshnessDays);
 }
 
-/** What the public sees: stored status, with VERIFIED downgraded to STALE when old. */
 export function effectiveVerificationStatus(
   stored: VerificationStatus,
   lastObservedAt: Date | null,

@@ -14,7 +14,6 @@ import { Report } from "@/modules/reports/entities/report.entity";
 
 @Injectable()
 export class FeatureStatusService {
-  /** Find the (building, type) feature row or create it as UNKNOWN/UNVERIFIED. */
   async getOrCreate(
     em: EntityManager,
     buildingId: string,
@@ -23,7 +22,6 @@ export class FeatureStatusService {
     const repo = em.getRepository(AccessibilityFeature);
     const existing = await repo.findOne({ where: { buildingId, featureType } });
     if (existing) return existing;
-    // ON CONFLICT DO NOTHING: safe if two users create the same feature at once
     await repo
       .createQueryBuilder()
       .insert()
@@ -33,11 +31,6 @@ export class FeatureStatusService {
     return repo.findOneOrFail({ where: { buildingId, featureType } });
   }
 
-  /**
-   * Re-derive a feature's status from its approved reports.
-   * MUST run inside a transaction: the feature row is locked so two moderators
-   * approving at the same time cannot overwrite each other's result.
-   */
   async recompute(
     em: EntityManager,
     featureId: string,
