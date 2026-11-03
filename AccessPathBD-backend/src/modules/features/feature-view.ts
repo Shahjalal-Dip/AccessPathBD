@@ -12,12 +12,10 @@ export interface FeatureView {
   buildingId: string;
   featureType: FeatureType;
   status: FeatureStatus;
-  /** Effective status: STALE is derived here, from FRESHNESS_DAYS. */
   verificationStatus: VerificationStatus;
   lastObservedAt: Date | null;
   lastVerifiedAt: Date | null;
   daysSinceObserved: number | null;
-  /** true for anything that is not currently VERIFIED: tell users to double-check. */
   needsRecheck: boolean;
   details: string | null;
 }
