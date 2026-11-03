@@ -15,11 +15,6 @@ import {
 } from "@/common/enums/accessibility.enums";
 import { Building } from "@/modules/buildings/entities/building.entity";
 
-/**
- * One row per (building, feature type). status / verificationStatus /
- * lastObservedAt are DERIVED from approved reports by FeatureStatusService
- * and must never be edited directly. STALE is never stored (see util).
- */
 @Entity("accessibility_features")
 @Index(["buildingId", "featureType"], { unique: true })
 @Index(["featureType", "status"])
