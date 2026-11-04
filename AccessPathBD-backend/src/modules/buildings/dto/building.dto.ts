@@ -1,4 +1,4 @@
-import { PartialType } from "@nestjs/swagger";
+import { ApiProperty, PartialType } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
@@ -27,34 +27,40 @@ const trim = ({ value }: { value: unknown }) =>
 export class CreateBuildingDto {
   @Transform(trim) 
   @IsString() 
-  @Length(2, 200) 
+  @Length(2, 200)
+  @ApiProperty() 
   name!: string;
 
   @Transform(trim) 
   @IsString() 
   @Length(3, 300) 
+  @ApiProperty() 
   address!: string;
 
   @IsOptional()
   @Transform(trim)
   @IsString()
   @MaxLength(2000)
+  @ApiProperty() 
   description?: string;
 
   @IsOptional() 
   @IsEnum(BuildingCategory) 
+  @ApiProperty() 
   category?: BuildingCategory;
 
   @IsOptional() 
   @Type(() => Number) 
   @IsNumber() 
   @IsLatitude() 
+  @ApiProperty() 
   latitude?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @IsLongitude()
+  @ApiProperty() 
   longitude?: number;
 }
 
