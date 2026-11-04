@@ -67,6 +67,7 @@ export class BuildingsController {
   @ApiBearerAuth()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @ApiBody({type:CreateBuildingDto})
   @Post()
   create(@Body() dto: CreateBuildingDto, @CurrentUser() user: AuthUser) {
     return this.buildings.create(dto, user);
@@ -75,6 +76,7 @@ export class BuildingsController {
   @ApiBearerAuth()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @ApiBody({type : UpdateBuildingDto})
   @Patch(":id")
   update(
     @Param("id", ParseUUIDPipe) id: string,
