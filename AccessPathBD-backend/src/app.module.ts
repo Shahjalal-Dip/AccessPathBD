@@ -12,6 +12,7 @@ import { AuditModule } from "@/modules/audit/audit.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { MailModule } from "@/modules/mail/mail.service";
 import { UsersModule } from "@/modules/users/users.module";
+import { FeaturesModule } from "@/modules/features/features.module";
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { UsersModule } from "@/modules/users/users.module";
     AuditModule,
     UsersModule,
     AuthModule,
+    FeaturesModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
