@@ -36,13 +36,21 @@ export class DecisionDto {
 }
 
 export class ResolveDisputeDto {
-  @IsUUID() winningReportId!: string;
-  @Transform(trim) @IsString() @Length(10, 1000) reason!: string;
+  @IsUUID() 
+  winningReportId!: string;
+
+  @Transform(trim) 
+  @IsString() 
+  @Length(10, 1000) 
+  reason!: string;
 }
 
 export class ReviewQueueQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsIn([...Object.values(ModerationStatus), "ALL"])
   status?: ModerationStatus | "ALL";
-  @IsOptional() @IsUUID() buildingId?: string;
+
+  @IsOptional() 
+  @IsUUID() 
+  buildingId?: string;
 }
