@@ -9,7 +9,6 @@ import {
 } from "typeorm";
 import { User } from "@/modules/users/entities/user.entity";
 
-/** Append-only. Never store passwords, tokens or other secrets in metadata. */
 @Entity("audit_logs")
 @Index(["entityType", "entityId"])
 export class AuditLog {
