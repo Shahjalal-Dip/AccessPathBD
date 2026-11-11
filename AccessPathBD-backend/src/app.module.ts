@@ -13,6 +13,7 @@ import { AuthModule } from "@/modules/auth/auth.module";
 import { MailModule } from "@/modules/mail/mail.service";
 import { UsersModule } from "@/modules/users/users.module";
 import { FeaturesModule } from "@/modules/features/features.module";
+import { BuildingsModule } from "./modules/buildings/buildings.module";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { FeaturesModule } from "@/modules/features/features.module";
     AuditModule,
     UsersModule,
     AuthModule,
+    BuildingsModule,
     FeaturesModule,
   ],
   controllers: [AppController],
