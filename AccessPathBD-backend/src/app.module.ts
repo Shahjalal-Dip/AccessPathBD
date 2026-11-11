@@ -14,6 +14,7 @@ import { MailModule } from "@/modules/mail/mail.service";
 import { UsersModule } from "@/modules/users/users.module";
 import { FeaturesModule } from "@/modules/features/features.module";
 import { BuildingsModule } from "./modules/buildings/buildings.module";
+import { ReviewsModule } from "@/modules/reviews/reviews.module";
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { BuildingsModule } from "./modules/buildings/buildings.module";
     UsersModule,
     AuthModule,
     BuildingsModule,
+    ReviewsModule,
     FeaturesModule,
   ],
   controllers: [AppController],
