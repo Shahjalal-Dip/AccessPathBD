@@ -1,14 +1,7 @@
-import {
-  CreateDateColumn,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryColumn,
-} from "typeorm";
+import {CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn,} from "typeorm";
 import { Building } from "@/modules/buildings/entities/building.entity";
 import { User } from "@/modules/users/entities/user.entity";
 
-/** A bookmark: "Saved Buildings" in the user's dashboard. */
 @Entity("saved_buildings")
 export class SavedBuilding {
   @PrimaryColumn({ type: "uuid" })
