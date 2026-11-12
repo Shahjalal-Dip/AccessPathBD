@@ -1,10 +1,12 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+
+import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
   IsArray,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -13,7 +15,10 @@ import {
   Min,
   MinLength,
 } from "class-validator";
-import { FeatureType } from "@/common/enums/accessibility.enums";
+import {
+  FeatureType,
+  ReviewStatus,
+} from "@/common/enums/accessibility.enums";
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
@@ -50,4 +55,21 @@ export class CreateReviewDto {
   @IsEnum(FeatureType, { each: true })
   @ApiPropertyOptional({ enum: FeatureType, isArray: true })
   featuresUsed?: FeatureType[];
+}
+
+export class UpdateReviewDto extends PartialType(CreateReviewDto) {}
+
+export class ReviewDecisionDto {
+  @IsIn([ReviewStatus.APPROVED, ReviewStatus.REJECTED])
+  @ApiProperty({
+    enum: [ReviewStatus.APPROVED, ReviewStatus.REJECTED],
+  })
+  status!: ReviewStatus;
+
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(1000)
+  @ApiPropertyOptional()
+  moderatorNote?: string;
 }
