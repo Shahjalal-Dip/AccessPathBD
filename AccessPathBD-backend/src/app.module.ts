@@ -14,6 +14,7 @@ import { MailModule } from "@/modules/mail/mail.service";
 import { UsersModule } from "@/modules/users/users.module";
 import { FeaturesModule } from "@/modules/features/features.module";
 import { BuildingsModule } from "./modules/buildings/buildings.module";
+import { AnalyticsModule } from "@/modules/analytics/analytics.module";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { BuildingsModule } from "./modules/buildings/buildings.module";
     AuthModule,
     BuildingsModule,
     FeaturesModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
