@@ -6,7 +6,6 @@ import { freshnessCutoff } from "@/modules/features/feature-status.util";
 
 type Row = Record<string, string | number | null>;
 
-/** Data-quality dashboard numbers for administrators (FR / NFR "analytics"). */
 @Injectable()
 export class AnalyticsService {
   constructor(@InjectDataSource() private readonly ds: DataSource) {}
