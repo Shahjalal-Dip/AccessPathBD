@@ -21,6 +21,9 @@ import { ReportsModule } from "@/modules/reports/reports.module";
 import { ModerationModule } from "@/modules/moderation/moderation.module";
 
 import { BuildingsModule } from "./modules/buildings/buildings.module";
+import { ReviewsModule } from "@/modules/reviews/reviews.module";
+import { AnalyticsModule } from "@/modules/analytics/analytics.module";
+import { SavedModule } from "@/modules/saved/saved.module";
 
 @Module({
   imports: [
@@ -39,9 +42,12 @@ import { BuildingsModule } from "./modules/buildings/buildings.module";
     UsersModule,
     AuthModule,
     BuildingsModule,
+    ReviewsModule,
     FeaturesModule,
     ReportsModule,
     ModerationModule,
+    AnalyticsModule,
+    SavedModule
   ],
   controllers: [AppController],
   providers: [
