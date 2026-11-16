@@ -20,7 +20,6 @@ export class SavedService {
     private readonly buildingViews: BuildingsService,
   ) {}
 
-  /** Just the ids, so the UI can show which "Save" buttons are already on. */
   async ids(userId: string) {
     const rows = await this.saved.find({
       where: { userId },
@@ -47,7 +46,6 @@ export class SavedService {
     );
   }
 
-  /** Idempotent: saving twice is fine. */
   async save(userId: string, buildingId: string) {
     const b = await this.buildings.findOne({
       where: { id: buildingId },
