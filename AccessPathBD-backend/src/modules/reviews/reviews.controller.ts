@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { Roles } from "@/common/decorators/roles.decorator";
 import { Role } from "@/common/enums/role.enum";
@@ -31,7 +31,6 @@ import { ReviewsService } from "@/modules/reviews/reviews.service";
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
-  // ---- public
   @Get("buildings/:id/reviews")
   list(
     @Param("id", ParseUUIDPipe) id: string,
@@ -40,10 +39,10 @@ export class ReviewsController {
     return this.reviews.listPublic(id, q);
   }
 
-  // ---- signed-in users
   @ApiBearerAuth()
   @UseGuards(JwtGuard)
   @Post("buildings/:id/reviews")
+  @ApiBody({type: CreateReviewDto})
   create(
     @CurrentUser() user: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
@@ -52,7 +51,6 @@ export class ReviewsController {
     return this.reviews.create(user, id, dto);
   }
 
-  // NOTE: declared before ":id" routes
   @ApiBearerAuth()
   @UseGuards(JwtGuard)
   @Get("reviews/mine")
@@ -62,6 +60,7 @@ export class ReviewsController {
 
   @ApiBearerAuth()
   @UseGuards(JwtGuard)
+  @ApiBody({type: UpdateReviewDto})
   @Patch("reviews/:id")
   update(
     @CurrentUser() user: AuthUser,
@@ -81,7 +80,6 @@ export class ReviewsController {
     return this.reviews.remove(user, id);
   }
 
-  // ---- moderators
   @ApiBearerAuth()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(Role.MODERATOR, Role.ADMIN)
@@ -93,6 +91,7 @@ export class ReviewsController {
   @ApiBearerAuth()
   @UseGuards(JwtGuard, RolesGuard)
   @Roles(Role.MODERATOR, Role.ADMIN)
+  @ApiBody({type: ReviewDecisionDto})
   @Patch("admin/reviews/:id/decision")
   decide(
     @CurrentUser() moderator: AuthUser,
