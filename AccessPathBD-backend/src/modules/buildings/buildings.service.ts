@@ -33,7 +33,7 @@ import { Building } from "@/modules/buildings/entities/building.entity";
 import { AccessibilityFeature } from "@/modules/features/entities/accessibility-feature.entity";
 import { FeatureView, toFeatureView } from "@/modules/features/feature-view";
 import { freshnessCutoff } from "@/modules/features/feature-status.util";
-// import { ReviewsService } from "@/modules/reviews/reviews.service";
+import { ReviewsService } from "@/modules/reviews/reviews.service";
 
 const MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -58,7 +58,7 @@ export class BuildingsService {
     @InjectRepository(AccessibilityFeature)
     private readonly features: Repository<AccessibilityFeature>,
     private readonly audit: AuditService,
-    // private readonly reviews: ReviewsService,
+    private readonly reviews: ReviewsService,
   ) {}
 
   async create(dto: CreateBuildingDto, actor: AuthUser): Promise<Building> {
@@ -200,13 +200,13 @@ export class BuildingsService {
       list.push(toFeatureView(f, now));
       byBuilding.set(f.buildingId, list);
     }
-    // const ratings = await this.reviews.summaries(rows.map((r) => r.id));
+    const ratings = await this.reviews.summaries(rows.map((r) => r.id));
     return rows.map(({ coverImage, ...r }) => ({
       ...r,
       coverImageUrl: coverUrl(r.id, coverImage, r.updatedAt),
       features: byBuilding.get(r.id) ?? [],
-      // rating: ratings.get(r.id) ?? { average: null, count: 0 },
-      rating: { average: null, count: 0 },
+      rating: ratings.get(r.id) ?? { average: null, count: 0 },
+
     }));
   }
 
