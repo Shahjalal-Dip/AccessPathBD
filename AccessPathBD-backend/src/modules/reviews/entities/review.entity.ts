@@ -13,10 +13,6 @@ import { FeatureType, ReviewStatus } from "@/common/enums/accessibility.enums";
 import { Building } from "@/modules/buildings/entities/building.entity";
 import { User } from "@/modules/users/entities/user.entity";
 
-/**
- * A visitor's personal experience. Reviews are OPINIONS: they never change a
- * building's verified accessibility facts (only approved reports do).
- */
 @Entity("reviews")
 @Check("CHK_reviews_rating", `"rating" BETWEEN 1 AND 5`)
 @Index(["buildingId", "status"])
@@ -48,7 +44,6 @@ export class Review {
   @Column({ type: "text" })
   body!: string;
 
-  /** Day of the visit, YYYY-MM-DD */
   @Column({ type: "date" })
   visitDate!: string;
 
@@ -63,7 +58,6 @@ export class Review {
   })
   status!: ReviewStatus;
 
-  /** Moderator's explanation when a review is not published. */
   @Column({ type: "text", nullable: true })
   moderatorNote!: string | null;
 
