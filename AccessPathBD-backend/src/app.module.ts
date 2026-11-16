@@ -14,6 +14,7 @@ import { MailModule } from "@/modules/mail/mail.service";
 import { UsersModule } from "@/modules/users/users.module";
 import { FeaturesModule } from "@/modules/features/features.module";
 import { BuildingsModule } from "./modules/buildings/buildings.module";
+import { ReviewsModule } from "@/modules/reviews/reviews.module";
 import { AnalyticsModule } from "@/modules/analytics/analytics.module";
 
 @Module({
@@ -33,6 +34,7 @@ import { AnalyticsModule } from "@/modules/analytics/analytics.module";
     UsersModule,
     AuthModule,
     BuildingsModule,
+    ReviewsModule,
     FeaturesModule,
     AnalyticsModule,
   ],
