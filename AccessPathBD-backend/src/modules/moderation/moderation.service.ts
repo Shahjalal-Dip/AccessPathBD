@@ -1,371 +1,257 @@
-
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { DataSource, Repository } from "typeorm";
-
+import { appConfig } from "@/config/app.config";
 import {
   ModerationDecision,
   ModerationStatus,
+  VerificationStatus,
 } from "@/common/enums/accessibility.enums";
-
 import {
-  Paginated,
   paginated,
+  PaginationQueryDto,
   skipOf,
 } from "@/common/dto/pagination-query.dto";
-
 import { AuthUser } from "@/common/interfaces/auth-user.interface";
 import { AuditService } from "@/modules/audit/audit.service";
-
-import { Report } from "@/modules/reports/entities/report.entity";
 import { AccessibilityFeature } from "@/modules/features/entities/accessibility-feature.entity";
-import { Verification } from "@/modules/moderation/entities/verification.entity";
-
+import { FeatureStatusService } from "@/modules/features/feature-status.service";
+import { computeFeatureState } from "@/modules/features/feature-status.util";
+import { toFeatureView } from "@/modules/features/feature-view";
 import {
   DecisionDto,
   ResolveDisputeDto,
   ReviewQueueQueryDto,
 } from "@/modules/moderation/dto/moderation.dto";
+import { Verification } from "@/modules/moderation/entities/verification.entity";
+import { Report } from "@/modules/reports/entities/report.entity";
+import { ReportsService } from "@/modules/reports/reports.service";
+import { toReportView } from "@/modules/reports/reports.views";
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const DECISION_TO_STATUS: Record<string, ModerationStatus> = {
+  [ModerationDecision.APPROVED]: ModerationStatus.APPROVED,
+  [ModerationDecision.REJECTED]: ModerationStatus.REJECTED,
+  [ModerationDecision.NEEDS_CLARIFICATION]:
+    ModerationStatus.NEEDS_CLARIFICATION,
+};
 
 @Injectable()
 export class ModerationService {
   constructor(
-    @InjectRepository(Report)
-    private readonly reportRepo: Repository<Report>,
-
+    @InjectRepository(Report) private readonly reports: Repository<Report>,
     @InjectRepository(AccessibilityFeature)
-    private readonly featureRepo: Repository<AccessibilityFeature>,
-
-    @InjectRepository(Verification)
-    private readonly verificationRepo: Repository<Verification>,
-
+    private readonly features: Repository<AccessibilityFeature>,
     private readonly dataSource: DataSource,
-    private readonly auditService: AuditService,
+    private readonly featureStatus: FeatureStatusService,
+    private readonly reportsService: ReportsService,
+    private readonly audit: AuditService,
   ) {}
 
-  private reportsConflict(
-    first: Report,
-    second: Report,
-  ): boolean {
-    if (first.observationStatus === second.observationStatus) {
-      return false;
-    }
+  /** Review queue: oldest first so nothing waits forever. */
+  async queue(q: ReviewQueueQueryDto) {
+    const qb = this.reports
+      .createQueryBuilder("r")
+      .innerJoinAndSelect("r.feature", "f")
+      .innerJoin("r.building", "b")
+      .addSelect(["b.id", "b.name"])
+      .innerJoin("r.submittedBy", "u")
+      .addSelect(["u.id", "u.fullName"])
+      .orderBy(
+        "r.createdAt",
+        // oldest first while reviewing; newest first when browsing everything
+        (q.status ?? ModerationStatus.PENDING) === ModerationStatus.PENDING
+          ? "ASC"
+          : "DESC",
+      );
+    if (q.status !== "ALL")
+      qb.where("r.moderationStatus = :s", {
+        s: q.status ?? ModerationStatus.PENDING,
+      });
+    if (q.buildingId) qb.andWhere("r.buildingId = :bid", { bid: q.buildingId });
 
-    const difference = Math.abs(
-      new Date(first.observedAt).getTime() -
-        new Date(second.observedAt).getTime(),
+    const [rows, total] = await qb
+      .skip(skipOf(q))
+      .take(q.limit)
+      .getManyAndCount();
+    const evidence = await this.reportsService.evidenceFor(
+      rows.map((r) => r.id),
     );
-
-    return difference <= THIRTY_DAYS_MS;
+    return paginated(
+      rows.map((r) => ({
+        ...toReportView(r, evidence.get(r.id)),
+        featureType: r.feature!.featureType,
+        currentFeatureStatus: r.feature!.status,
+        building: { id: r.building!.id, name: r.building!.name },
+        submittedBy: {
+          id: r.submittedBy!.id,
+          fullName: r.submittedBy!.fullName,
+        },
+      })),
+      total,
+      q,
+    );
   }
 
-  private hasConflict(reports: Report[]): boolean {
-    for (let i = 0; i < reports.length; i++) {
-      for (let j = i + 1; j < reports.length; j++) {
-        if (this.reportsConflict(reports[i], reports[j])) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  async getQueue(
-    query: ReviewQueueQueryDto,
-  ): Promise<Paginated<Report>> {
-    const status = query.status ?? ModerationStatus.PENDING;
-
-    const where: any = {
-      ...(status === "ALL" ? {} : { moderationStatus: status }),
-      ...(query.buildingId
-        ? { buildingId: query.buildingId }
-        : {}),
-    };
-
-    const [reports, total] = await this.reportRepo.findAndCount({
-      where,
-      relations: {
-        building: true,
-        feature: true,
-        submittedBy: true,
-      },
-      order: {
-        createdAt: "ASC",
-      },
-      skip: skipOf(query),
-      take: query.limit,
-    });
-
-    return paginated(reports, total, query);
-  }
-
-  async decide(
-    reportId: string,
-    dto: DecisionDto,
-    moderator: AuthUser,
-  ): Promise<Report> {
-    return this.dataSource.transaction(async (manager) => {
-      const reportRepository = manager.getRepository(Report);
-      const featureRepository =
-        manager.getRepository(AccessibilityFeature);
-      const verificationRepository =
-        manager.getRepository(Verification);
-
-      const report = await reportRepository.findOne({
+  /**
+   * Record a decision. Everything below happens in ONE transaction:
+   * report row locked -> verification appended -> report status updated ->
+   * feature re-derived -> audit entry. Either all of it happens or none.
+   */
+  async decide(moderator: AuthUser, reportId: string, dto: DecisionDto) {
+    return this.dataSource.transaction(async (em) => {
+      const report = await em.findOne(Report, {
         where: { id: reportId },
         lock: { mode: "pessimistic_write" },
       });
-
-      if (!report) {
-        throw new NotFoundException("Report not found");
-      }
-
-      if (report.submittedById === moderator.id) {
-        throw new ForbiddenException(
-          "A moderator cannot review their own report",
+      if (!report) throw new NotFoundException("Report not found");
+      if (report.submittedById === moderator.id)
+        throw new ForbiddenException("You cannot moderate your own report");
+      if (report.moderationStatus !== ModerationStatus.PENDING)
+        throw new ConflictException(
+          `Only PENDING reports can be decided (this one is ${report.moderationStatus})`,
         );
-      }
 
-      if (
-        ![
-          ModerationStatus.PENDING,
-          ModerationStatus.NEEDS_CLARIFICATION,
-        ].includes(report.moderationStatus)
-      ) {
-        throw new BadRequestException(
-          "This report can no longer be reviewed",
-        );
-      }
-
-      if (
-        dto.decision !== ModerationDecision.APPROVED &&
-        !dto.reason?.trim()
-      ) {
-        throw new BadRequestException(
-          "A reason is required for this decision",
-        );
-      }
-
-      // Lock the related feature to serialize moderation operations.
-      // Feature status and trust labels are calculated by FeaturesModule.
-      if (dto.decision === ModerationDecision.APPROVED) {
-        const feature = await featureRepository.findOne({
-          where: { id: report.featureId },
-          lock: { mode: "pessimistic_write" },
-        });
-
-        if (!feature) {
-          throw new NotFoundException(
-            "Accessibility feature not found",
-          );
-        }
-      }
-
-      const nextStatus: Record<string, ModerationStatus> = {
-        [ModerationDecision.APPROVED]:
-          ModerationStatus.APPROVED,
-        [ModerationDecision.REJECTED]:
-          ModerationStatus.REJECTED,
-        [ModerationDecision.NEEDS_CLARIFICATION]:
-          ModerationStatus.NEEDS_CLARIFICATION,
-      };
-
-      report.moderationStatus = nextStatus[dto.decision];
-      report.decidedAt = new Date();
-
-      await reportRepository.save(report);
-
-      await verificationRepository.insert({
-        reportId: report.id,
+      const now = new Date();
+      await em.insert(Verification, {
+        reportId,
         reviewedById: moderator.id,
         decision: dto.decision,
-        decisionReason: dto.reason?.trim() || null,
+        decisionReason: dto.reason?.slice(0, 1000) ?? null,
       });
+      report.moderationStatus = DECISION_TO_STATUS[dto.decision];
+      report.decidedAt = now;
+      await em.save(report);
 
-      await this.auditService.log(
+      let feature: AccessibilityFeature | null = null;
+      if (dto.decision === ModerationDecision.APPROVED)
+        feature = (await this.featureStatus.recompute(em, report.featureId))
+          .feature;
+
+      await this.audit.log(
         {
           actorUserId: moderator.id,
-          action: "REPORT_DECISION",
-          entityType: "REPORT",
-          entityId: report.id,
-          metadata: {
-            decision: dto.decision,
-            reason: dto.reason?.trim() || null,
-          },
+          action: `REPORT_${dto.decision}`,
+          entityType: "report",
+          entityId: reportId,
+          metadata: { featureId: report.featureId },
         },
-        manager,
-      );
-
-      return reportRepository.findOneOrFail({
-        where: { id: report.id },
-        relations: {
-          building: true,
-          feature: true,
-        },
-      });
-    });
-  }
-
-  async getDisputes(query: ReviewQueueQueryDto) {
-    const where: any = {
-      moderationStatus: ModerationStatus.APPROVED,
-      ...(query.buildingId
-        ? { buildingId: query.buildingId }
-        : {}),
-    };
-
-    const approvedReports = await this.reportRepo.find({
-      where,
-      relations: {
-        building: true,
-        feature: true,
-        submittedBy: true,
-      },
-      order: {
-        observedAt: "ASC",
-      },
-    });
-
-    const grouped = new Map<string, Report[]>();
-
-    for (const report of approvedReports) {
-      const existing = grouped.get(report.featureId) ?? [];
-      existing.push(report);
-      grouped.set(report.featureId, existing);
-    }
-
-    const disputedGroups = Array.from(grouped.entries())
-      .filter(([, reports]) => this.hasConflict(reports))
-      .map(([featureId, reports]) => ({
-        featureId,
-        reportCount: reports.length,
-        reports,
-      }));
-
-    const total = disputedGroups.length;
-
-    const data = disputedGroups.slice(
-      skipOf(query),
-      skipOf(query) + query.limit,
-    );
-
-    return paginated(data, total, query);
-  }
-
-  async resolveDispute(
-    featureId: string,
-    dto: ResolveDisputeDto,
-    moderator: AuthUser,
-  ) {
-    return this.dataSource.transaction(async (manager) => {
-      const featureRepository =
-        manager.getRepository(AccessibilityFeature);
-      const reportRepository = manager.getRepository(Report);
-      const verificationRepository =
-        manager.getRepository(Verification);
-
-      const feature = await featureRepository.findOne({
-        where: { id: featureId },
-        lock: { mode: "pessimistic_write" },
-      });
-
-      if (!feature) {
-        throw new NotFoundException(
-          "Accessibility feature not found",
-        );
-      }
-
-      const approvedReports = await reportRepository.find({
-        where: {
-          featureId,
-          moderationStatus: ModerationStatus.APPROVED,
-        },
-        lock: { mode: "pessimistic_write" },
-      });
-
-      const winningReport = approvedReports.find(
-        (report) => report.id === dto.winningReportId,
-      );
-
-      if (!winningReport) {
-        throw new BadRequestException(
-          "Winning report must be an approved report for this feature",
-        );
-      }
-
-      const losingReports = approvedReports.filter(
-        (report) =>
-          report.id !== winningReport.id &&
-          this.reportsConflict(report, winningReport),
-      );
-
-      if (losingReports.length === 0) {
-        throw new BadRequestException(
-          "No conflicting approved reports were found for the winning report",
-        );
-      }
-
-      if (
-        approvedReports.some(
-          (report) =>
-            (report.id === winningReport.id ||
-              losingReports.some(
-                (loser) => loser.id === report.id,
-              )) &&
-            report.submittedById === moderator.id,
-        )
-      ) {
-        throw new ForbiddenException(
-          "A moderator cannot resolve a dispute involving their own report",
-        );
-      }
-
-      for (const losingReport of losingReports) {
-        losingReport.moderationStatus =
-          ModerationStatus.SUPERSEDED;
-
-        await reportRepository.save(losingReport);
-
-        await verificationRepository.insert({
-          reportId: losingReport.id,
-          reviewedById: moderator.id,
-          decision: ModerationDecision.SUPERSEDED,
-          decisionReason: dto.reason.trim(),
-        });
-      }
-
-      await this.auditService.log(
-        {
-          actorUserId: moderator.id,
-          action: "DISPUTE_RESOLVED",
-          entityType: "ACCESSIBILITY_FEATURE",
-          entityId: feature.id,
-          metadata: {
-            winningReportId: winningReport.id,
-            supersededReportIds: losingReports.map(
-              (report) => report.id,
-            ),
-            reason: dto.reason.trim(),
-          },
-        },
-        manager,
+        em,
       );
 
       return {
-        message: "Dispute resolved successfully",
-        featureId: feature.id,
-        winningReportId: winningReport.id,
-        supersededReportIds: losingReports.map(
-          (report) => report.id,
-        ),
+        report: toReportView(report),
+        feature: feature ? toFeatureView(feature) : null,
+      };
+    });
+  }
+
+  /** Features whose recent approved reports contradict each other. */
+  async disputes(q: PaginationQueryDto) {
+    const [features, total] = await this.features.findAndCount({
+      where: { verificationStatus: VerificationStatus.DISPUTED },
+      order: { updatedAt: "ASC" },
+      skip: skipOf(q),
+      take: q.limit,
+    });
+    const data = await Promise.all(
+      features.map(async (f) => {
+        const approved = await this.reports.find({
+          where: {
+            featureId: f.id,
+            moderationStatus: ModerationStatus.APPROVED,
+          },
+          order: { observedAt: "DESC" },
+        });
+        const { conflictingReportIds } = computeFeatureState(
+          approved,
+          appConfig.env.CONFLICT_WINDOW_DAYS,
+        );
+        return {
+          feature: toFeatureView(f),
+          conflictingReports: approved
+            .filter((r) => conflictingReportIds.includes(r.id))
+            .map((r) => toReportView(r)),
+        };
+      }),
+    );
+    return paginated(data, total, q);
+  }
+
+  /**
+   * A moderator picks the report they trust. Conflicting approved reports that
+   * disagree with it become SUPERSEDED (kept as history, no longer counted).
+   */
+  async resolveDispute(
+    moderator: AuthUser,
+    featureId: string,
+    dto: ResolveDisputeDto,
+  ) {
+    return this.dataSource.transaction(async (em) => {
+      const feature = await em.findOne(AccessibilityFeature, {
+        where: { id: featureId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!feature) throw new NotFoundException("Feature not found");
+      if (feature.verificationStatus !== VerificationStatus.DISPUTED)
+        throw new ConflictException("This feature is not currently disputed");
+
+      const approved = await em.find(Report, {
+        where: { featureId, moderationStatus: ModerationStatus.APPROVED },
+      });
+      const { conflictingReportIds } = computeFeatureState(
+        approved,
+        appConfig.env.CONFLICT_WINDOW_DAYS,
+      );
+      const winner = approved.find((r) => r.id === dto.winningReportId);
+      if (!winner || !conflictingReportIds.includes(winner.id))
+        throw new BadRequestException(
+          "winningReportId must be one of the conflicting approved reports",
+        );
+
+      const losers = approved.filter(
+        (r) =>
+          conflictingReportIds.includes(r.id) &&
+          r.observationStatus !== winner.observationStatus,
+      );
+      const now = new Date();
+      for (const loser of losers) {
+        loser.moderationStatus = ModerationStatus.SUPERSEDED;
+        loser.decidedAt = now;
+        await em.save(loser);
+        await em.insert(Verification, {
+          reportId: loser.id,
+          reviewedById: moderator.id,
+          decision: ModerationDecision.SUPERSEDED,
+          decisionReason: dto.reason,
+        });
+      }
+
+      const { feature: updated } = await this.featureStatus.recompute(
+        em,
+        featureId,
+      );
+      await this.audit.log(
+        {
+          actorUserId: moderator.id,
+          action: "DISPUTE_RESOLVED",
+          entityType: "feature",
+          entityId: featureId,
+          metadata: {
+            winningReportId: winner.id,
+            superseded: losers.map((l) => l.id),
+          },
+        },
+        em,
+      );
+      return {
+        feature: toFeatureView(updated),
+        supersededReportIds: losers.map((l) => l.id),
       };
     });
   }

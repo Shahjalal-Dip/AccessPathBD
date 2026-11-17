@@ -1,538 +1,434 @@
-
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
+import { createReadStream } from "fs";
+import { access, rm } from "fs/promises";
+import { basename, resolve, sep } from "path";
+import { DataSource, In, Repository } from "typeorm";
+import { appConfig } from "@/config/app.config";
 import {
-  mkdir,
-  readFile,
-  unlink,
-  writeFile,
-} from "fs/promises";
-import { randomUUID } from "crypto";
-import { join } from "path";
-import { DataSource, Repository } from "typeorm";
-
-import { Report } from "@/modules/reports/entities/report.entity";
-import { ReportEvidence } from "@/modules/reports/entities/report-evidence.entity";
-import { Building } from "@/modules/buildings/entities/building.entity";
-import { AccessibilityFeature } from "@/modules/features/entities/accessibility-feature.entity";
-import { Verification } from "@/modules/moderation/entities/verification.entity";
-import { AuditService } from "@/modules/audit/audit.service";
-import { AuthUser } from "@/common/interfaces/auth-user.interface";
-import { CreateReportDto } from "@/modules/reports/dto/create-report.dto";
-import { UpdateReportDto } from "@/modules/reports/dto/update-report.dto";
-import { ModerationStatus } from "@/common/enums/accessibility.enums";
+  FeatureType,
+  ModerationStatus,
+} from "@/common/enums/accessibility.enums";
 import { Role } from "@/common/enums/role.enum";
-import { detectImageType } from "@/common/utilities/file-signature.util";
+import {
+  Paginated,
+  paginated,
+  skipOf,
+} from "@/common/dto/pagination-query.dto";
+import { AuthUser } from "@/common/interfaces/auth-user.interface";
+import { detectImageTypeFromFile } from "@/common/utilities/file-signature.util";
+import { AuditService } from "@/modules/audit/audit.service";
+import { Building } from "@/modules/buildings/entities/building.entity";
+import { FeatureStatusService } from "@/modules/features/feature-status.service";
+import { Verification } from "@/modules/moderation/entities/verification.entity";
+import {
+  CreateReportDto,
+  HistoryQueryDto,
+  ListMyReportsQueryDto,
+  UpdateReportDto,
+} from "@/modules/reports/dto/report.dto";
+import { ReportEvidence } from "@/modules/reports/entities/report-evidence.entity";
+import { Report } from "@/modules/reports/entities/report.entity";
+import { toEvidenceView, toReportView } from "@/modules/reports/reports.views";
 
-const MAX_FILES_PER_REPORT = 5;
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const OPEN = [ModerationStatus.PENDING, ModerationStatus.NEEDS_CLARIFICATION];
+const PUBLIC = [ModerationStatus.APPROVED, ModerationStatus.SUPERSEDED];
+const isStaff = (u: AuthUser) =>
+  u.roles.includes(Role.MODERATOR) || u.roles.includes(Role.ADMIN);
+
+export const uploadDir = () => resolve(process.cwd(), appConfig.env.UPLOAD_DIR);
 
 @Injectable()
 export class ReportsService {
   constructor(
-    @InjectRepository(Report)
-    private readonly reportRepository: Repository<Report>,
-
+    @InjectRepository(Report) private readonly reports: Repository<Report>,
     @InjectRepository(ReportEvidence)
-    private readonly evidenceRepository: Repository<ReportEvidence>,
-
+    private readonly evidence: Repository<ReportEvidence>,
     @InjectRepository(Building)
-    private readonly buildingRepository: Repository<Building>,
-
-    @InjectRepository(AccessibilityFeature)
-    private readonly featureRepository: Repository<AccessibilityFeature>,
-
+    private readonly buildings: Repository<Building>,
     @InjectRepository(Verification)
-    private readonly verificationRepository: Repository<Verification>,
-
-    private readonly auditService: AuditService,
+    private readonly verifications: Repository<Verification>,
     private readonly dataSource: DataSource,
+    private readonly featureStatus: FeatureStatusService,
+    private readonly audit: AuditService,
   ) {}
 
-  async findMine(actor: AuthUser) {
-    const reports = await this.reportRepository.find({
-      where: { submittedById: actor.id },
-      relations: {
-        building: true,
-        feature: true,
-      },
-      order: {
-        createdAt: "DESC",
-      },
-    });
+  // ---------------------------------------------------------------- create
+  async create(user: AuthUser, dto: CreateReportDto) {
+    const observedAt = new Date(dto.observedAt);
+    if (observedAt.getTime() > Date.now() + 5 * 60_000)
+      throw new BadRequestException("observedAt cannot be in the future");
 
-    if (reports.length === 0) {
-      return [];
-    }
-
-    const reportIds = reports.map((report) => report.id);
-
-    const verifications = await this.verificationRepository
-      .createQueryBuilder("verification")
-      .where("verification.reportId IN (:...reportIds)", {
-        reportIds,
-      })
-      .orderBy("verification.reviewedAt", "DESC")
-      .getMany();
-
-    const latestByReport = new Map<string, Verification>();
-
-    for (const verification of verifications) {
-      if (!latestByReport.has(verification.reportId)) {
-        latestByReport.set(verification.reportId, verification);
-      }
-    }
-
-    return reports.map((report) => {
-      const latest = latestByReport.get(report.id);
-
-      return {
-        ...report,
-        latestDecision: latest
-          ? {
-              decision: latest.decision,
-              decisionReason: latest.decisionReason,
-              reviewedAt: latest.reviewedAt,
-            }
-          : null,
-      };
-    });
-  }
-
-  async findOne(id: string, actor: AuthUser) {
-    const isModerator =
-      actor.roles.includes(Role.MODERATOR) ||
-      actor.roles.includes(Role.ADMIN);
-
-    const query = this.reportRepository
-      .createQueryBuilder("report")
-      .leftJoinAndSelect("report.building", "building")
-      .leftJoinAndSelect("report.feature", "feature")
-      .where("report.id = :id", { id });
-
-    if (!isModerator) {
-      query.andWhere("report.submittedById = :userId", {
-        userId: actor.id,
-      });
-    } else {
-      query
-        .leftJoin("report.submittedBy", "submitter")
-        .addSelect([
-          "submitter.id",
-          "submitter.fullName",
-          "submitter.email",
-        ]);
-    }
-
-    const report = await query.getOne();
-
-    if (!report) {
-      throw new NotFoundException("Report not found");
-    }
-
-    const verificationHistory = await this.verificationRepository
-      .createQueryBuilder("verification")
-      .leftJoin("verification.reviewedBy", "reviewer")
-      .addSelect(["reviewer.id", "reviewer.fullName"])
-      .where("verification.reportId = :reportId", {
-        reportId: report.id,
-      })
-      .orderBy("verification.reviewedAt", "ASC")
-      .getMany();
-
-    return {
-      ...report,
-      verificationHistory,
-    };
-  }
-
-  async create(dto: CreateReportDto, actor: AuthUser) {
-    const building = await this.buildingRepository.findOne({
+    const building = await this.buildings.findOne({
       where: { id: dto.buildingId },
+      select: { id: true },
     });
+    if (!building) throw new NotFoundException("Building not found");
 
-    if (!building) {
-      throw new NotFoundException("Building not found");
-    }
-
-    const feature = await this.featureRepository.findOne({
-      where: { id: dto.featureId },
-    });
-
-    if (!feature) {
-      throw new NotFoundException("Feature not found");
-    }
-
-    if (feature.buildingId !== dto.buildingId) {
-      throw new BadRequestException(
-        "The selected feature does not belong to this building",
+    return this.dataSource.transaction(async (em) => {
+      const feature = await this.featureStatus.getOrCreate(
+        em,
+        dto.buildingId,
+        dto.featureType,
       );
-    }
 
-    const report = this.reportRepository.create({
-      buildingId: dto.buildingId,
-      featureId: dto.featureId,
-      submittedById: actor.id,
-      observationStatus: dto.observationStatus,
-      observedAt: new Date(dto.observedAt),
-      description: dto.description,
-      moderationStatus: ModerationStatus.PENDING,
-      decidedAt: null,
-    });
-
-    const savedReport = await this.reportRepository.save(report);
-
-    await this.auditService.log({
-      actorUserId: actor.id,
-      action: "REPORT_CREATED",
-      entityType: "report",
-      entityId: savedReport.id,
-      metadata: {
-        buildingId: savedReport.buildingId,
-        featureId: savedReport.featureId,
-      },
-    });
-
-    return savedReport;
-  }
-
-  async update(id: string, dto: UpdateReportDto, actor: AuthUser) {
-    const report = await this.reportRepository.findOne({
-      where: {
-        id,
-        submittedById: actor.id,
-      },
-    });
-
-    if (!report) {
-      throw new NotFoundException("Report not found");
-    }
-
-    const editableStatuses = [
-      ModerationStatus.PENDING,
-      ModerationStatus.NEEDS_CLARIFICATION,
-    ];
-
-    if (!editableStatuses.includes(report.moderationStatus)) {
-      throw new BadRequestException(
-        "This report can no longer be edited",
-      );
-    }
-
-    if (
-      dto.observationStatus === undefined &&
-      dto.observedAt === undefined &&
-      dto.description === undefined
-    ) {
-      throw new BadRequestException(
-        "At least one field must be provided for update",
-      );
-    }
-
-    if (dto.observationStatus !== undefined) {
-      report.observationStatus = dto.observationStatus;
-    }
-
-    if (dto.observedAt !== undefined) {
-      report.observedAt = new Date(dto.observedAt);
-    }
-
-    if (dto.description !== undefined) {
-      report.description = dto.description;
-    }
-
-    const updatedReport = await this.reportRepository.save(report);
-
-    await this.auditService.log({
-      actorUserId: actor.id,
-      action: "REPORT_UPDATED",
-      entityType: "report",
-      entityId: updatedReport.id,
-      metadata: {
-        updatedFields: Object.keys(dto),
-      },
-    });
-
-    return updatedReport;
-  }
-
-  async withdraw(id: string, actor: AuthUser) {
-    const report = await this.reportRepository.findOne({
-      where: {
-        id,
-        submittedById: actor.id,
-      },
-    });
-
-    if (!report) {
-      throw new NotFoundException("Report not found");
-    }
-
-    const withdrawableStatuses = [
-      ModerationStatus.PENDING,
-      ModerationStatus.NEEDS_CLARIFICATION,
-    ];
-
-    if (!withdrawableStatuses.includes(report.moderationStatus)) {
-      throw new BadRequestException(
-        "This report can no longer be withdrawn",
-      );
-    }
-
-    const previousStatus = report.moderationStatus;
-
-    report.moderationStatus = ModerationStatus.WITHDRAWN;
-
-    const withdrawnReport = await this.reportRepository.save(report);
-
-    await this.auditService.log({
-      actorUserId: actor.id,
-      action: "REPORT_WITHDRAWN",
-      entityType: "report",
-      entityId: withdrawnReport.id,
-      metadata: {
-        previousStatus,
-        newStatus: ModerationStatus.WITHDRAWN,
-      },
-    });
-
-    return withdrawnReport;
-  }
-
-  async uploadEvidence(
-    id: string,
-    files: Express.Multer.File[],
-    actor: AuthUser,
-  ) {
-    if (!files || files.length === 0) {
-      throw new BadRequestException("At least one image is required");
-    }
-
-    if (files.length > MAX_FILES_PER_REPORT) {
-      throw new BadRequestException("Maximum 5 images are allowed");
-    }
-
-    const validatedFiles = files.map((file) => {
-      if (!file.buffer || file.size <= 0) {
-        throw new BadRequestException("Empty or invalid image file");
-      }
-
-      if (file.size > MAX_FILE_SIZE) {
-        throw new BadRequestException(
-          "Each image must be 5 MB or smaller",
-        );
-      }
-
-      const detected = detectImageType(file.buffer.subarray(0, 12));
-
-      if (!detected) {
-        throw new BadRequestException(
-          "Only JPEG, PNG and WebP images are allowed",
-        );
-      }
-
-      const originalFilename =
-        file.originalname
-          .replace(/\\/g, "/")
-          .split("/")
-          .pop()
-          ?.slice(0, 255) || "image";
-
-      return {
-        file,
-        detected,
-        originalFilename,
-      };
-    });
-
-    const createdFilePaths: string[] = [];
-
-    try {
-      const savedEvidence = await this.dataSource.transaction(
-        async (manager) => {
-          const report = await manager
-            .getRepository(Report)
-            .createQueryBuilder("report")
-            .setLock("pessimistic_write")
-            .where("report.id = :id", { id })
-            .andWhere("report.submittedById = :userId", {
-              userId: actor.id,
-            })
-            .getOne();
-
-          if (!report) {
-            throw new NotFoundException("Report not found");
-          }
-
-          const editableStatuses = [
-            ModerationStatus.PENDING,
-            ModerationStatus.NEEDS_CLARIFICATION,
-          ];
-
-          if (!editableStatuses.includes(report.moderationStatus)) {
-            throw new BadRequestException(
-              "Evidence can only be added to open reports",
-            );
-          }
-
-          const evidenceRepo = manager.getRepository(ReportEvidence);
-
-          const existingCount = await evidenceRepo.count({
-            where: { reportId: id },
-          });
-
-          if (
-            existingCount + validatedFiles.length >
-            MAX_FILES_PER_REPORT
-          ) {
-            throw new BadRequestException(
-              "A report can contain a maximum of 5 images",
-            );
-          }
-
-          const storageDirectory = join(
-            process.cwd(),
-            "storage",
-            "report-evidence",
-          );
-
-          await mkdir(storageDirectory, { recursive: true });
-
-          const evidenceRecords: ReportEvidence[] = [];
-
-          for (const item of validatedFiles) {
-            const storedFilename =
-              `${randomUUID()}${item.detected.ext}`;
-
-            const fullPath = join(
-              storageDirectory,
-              storedFilename,
-            );
-
-            await writeFile(fullPath, item.file.buffer, {
-              flag: "wx",
-            });
-
-            createdFilePaths.push(fullPath);
-
-            const evidence = evidenceRepo.create({
-              reportId: id,
-              uploadedById: actor.id,
-              originalFilename: item.originalFilename,
-              storedFilename,
-              storagePath: `storage/report-evidence/${storedFilename}`,
-              mimeType: item.detected.mime,
-              sizeBytes: item.file.size,
-            });
-
-            evidenceRecords.push(evidence);
-          }
-
-          const saved = await evidenceRepo.save(evidenceRecords);
-
-          await this.auditService.log(
-            {
-              actorUserId: actor.id,
-              action: "REPORT_EVIDENCE_UPLOADED",
-              entityType: "report",
-              entityId: id,
-              metadata: {
-                evidenceIds: saved.map((item) => item.id),
-                count: saved.length,
-              },
-            },
-            manager,
-          );
-
-          return saved;
+      const open = await em.count(Report, {
+        where: {
+          submittedById: user.id,
+          featureId: feature.id,
+          moderationStatus: In(OPEN),
         },
-      );
+      });
+      if (open > 0)
+        throw new ConflictException(
+          "You already have an open report for this feature. Edit or withdraw it first.",
+        );
 
-      return savedEvidence.map((item) => ({
-        id: item.id,
-        reportId: item.reportId,
-        uploadedById: item.uploadedById,
-        originalFilename: item.originalFilename,
-        mimeType: item.mimeType,
-        sizeBytes: item.sizeBytes,
-        createdAt: item.createdAt,
-      }));
-    } catch (error) {
-      await Promise.all(
-        createdFilePaths.map(async (filePath) => {
-          try {
-            await unlink(filePath);
-          } catch {
-            // Ignore cleanup errors; preserve the original error.
-          }
+      const report = await em.save(
+        em.create(Report, {
+          buildingId: dto.buildingId,
+          featureId: feature.id,
+          submittedById: user.id,
+          observationStatus: dto.observationStatus,
+          description: dto.description,
+          observedAt,
+          moderationStatus: ModerationStatus.PENDING,
         }),
       );
+      await this.audit.log(
+        {
+          actorUserId: user.id,
+          action: "REPORT_SUBMITTED",
+          entityType: "report",
+          entityId: report.id,
+          metadata: {
+            buildingId: dto.buildingId,
+            featureType: dto.featureType,
+          },
+        },
+        em,
+      );
+      return toReportView(report);
+    });
+  }
 
-      throw error;
+  // ------------------------------------------------------------- read
+  async listMine(user: AuthUser, q: ListMyReportsQueryDto) {
+    const [rows, total] = await this.reports.findAndCount({
+      where: {
+        submittedById: user.id,
+        ...(q.status ? { moderationStatus: q.status } : {}),
+      },
+      order: { createdAt: "DESC" },
+      skip: skipOf(q),
+      take: q.limit,
+    });
+    const evidence = await this.evidenceFor(rows.map((r) => r.id));
+    const latest = await this.latestDecisions(rows.map((r) => r.id));
+    return paginated(
+      rows.map((r) => ({
+        ...toReportView(r, evidence.get(r.id)),
+        latestDecision: latest.get(r.id) ?? null,
+      })),
+      total,
+      q,
+    );
+  }
+
+  async getOne(user: AuthUser, id: string) {
+    const report = await this.mustFind(id);
+    const staff = isStaff(user);
+    // Hide existence of other people's reports instead of returning 403
+    if (!staff && report.submittedById !== user.id)
+      throw new NotFoundException("Report not found");
+
+    const evidence = await this.evidence.find({
+      where: { reportId: id },
+      order: { uploadedAt: "ASC" },
+    });
+    const history = await this.verifications
+      .createQueryBuilder("v")
+      .innerJoin("v.reviewedBy", "u")
+      .addSelect(["u.id", "u.fullName"])
+      .where("v.reportId = :id", { id })
+      .orderBy("v.reviewedAt", "ASC")
+      .getMany();
+
+    return {
+      ...toReportView(report, evidence),
+      // submitter identity is for staff only; contributors never see other people's details
+      ...(staff && report.submittedBy
+        ? {
+            submittedBy: {
+              id: report.submittedBy.id,
+              fullName: report.submittedBy.fullName,
+            },
+          }
+        : {}),
+      verificationHistory: history.map((v) => ({
+        id: v.id,
+        decision: v.decision,
+        reason: v.decisionReason,
+        reviewedAt: v.reviewedAt,
+        // moderator identity is visible to staff only
+        ...(staff
+          ? {
+              reviewedBy: {
+                id: v.reviewedBy!.id,
+                fullName: v.reviewedBy!.fullName,
+              },
+            }
+          : {}),
+      })),
+    };
+  }
+
+  // ------------------------------------------------------------ update
+  async update(user: AuthUser, id: string, dto: UpdateReportDto) {
+    if (
+      dto.observedAt &&
+      new Date(dto.observedAt).getTime() > Date.now() + 5 * 60_000
+    )
+      throw new BadRequestException("observedAt cannot be in the future");
+
+    return this.dataSource.transaction(async (em) => {
+      const report = await em.findOne(Report, {
+        where: { id },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!report || report.submittedById !== user.id)
+        throw new NotFoundException("Report not found");
+      if (!OPEN.includes(report.moderationStatus))
+        throw new ConflictException(
+          "Only pending reports or reports needing clarification can be edited. Approved reports are history and cannot be changed.",
+        );
+
+      if (dto.observationStatus)
+        report.observationStatus = dto.observationStatus;
+      if (dto.description) report.description = dto.description;
+      if (dto.observedAt) report.observedAt = new Date(dto.observedAt);
+      // After a clarification request, an edit puts the report back in the queue
+      report.moderationStatus = ModerationStatus.PENDING;
+      await em.save(report);
+      await this.audit.log(
+        {
+          actorUserId: user.id,
+          action: "REPORT_EDITED",
+          entityType: "report",
+          entityId: id,
+        },
+        em,
+      );
+      const evidence = await em.find(ReportEvidence, {
+        where: { reportId: id },
+      });
+      return toReportView(report, evidence);
+    });
+  }
+
+  async withdraw(user: AuthUser, id: string) {
+    return this.dataSource.transaction(async (em) => {
+      const report = await em.findOne(Report, {
+        where: { id },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!report || report.submittedById !== user.id)
+        throw new NotFoundException("Report not found");
+      if (!OPEN.includes(report.moderationStatus))
+        throw new ConflictException("Only open reports can be withdrawn");
+      report.moderationStatus = ModerationStatus.WITHDRAWN;
+      await em.save(report);
+      await this.audit.log(
+        {
+          actorUserId: user.id,
+          action: "REPORT_WITHDRAWN",
+          entityType: "report",
+          entityId: id,
+        },
+        em,
+      );
+      return toReportView(report);
+    });
+  }
+
+  // ---------------------------------------------------------- evidence
+  async addEvidence(
+    user: AuthUser,
+    reportId: string,
+    files: Express.Multer.File[] = [],
+  ) {
+    try {
+      if (!files.length)
+        throw new BadRequestException(
+          "Attach at least one image (form field name: files)",
+        );
+      const report = await this.reports.findOne({ where: { id: reportId } });
+      if (!report || report.submittedById !== user.id)
+        throw new NotFoundException("Report not found");
+      if (!OPEN.includes(report.moderationStatus))
+        throw new ConflictException(
+          "Evidence can only be added to open reports",
+        );
+
+      const existing = await this.evidence.count({ where: { reportId } });
+      if (existing + files.length > appConfig.env.UPLOAD_MAX_FILES_PER_REPORT)
+        throw new BadRequestException(
+          `A report can have at most ${appConfig.env.UPLOAD_MAX_FILES_PER_REPORT} images`,
+        );
+
+      // The client-declared Content-Type is not trustworthy: verify the real bytes.
+      for (const f of files) {
+        const real = await detectImageTypeFromFile(f.path);
+        if (!real || real.mime !== f.mimetype)
+          throw new BadRequestException(
+            `"${basename(f.originalname)}" is not a valid JPEG, PNG or WebP image`,
+          );
+      }
+
+      const saved = await this.evidence.save(
+        files.map((f) =>
+          this.evidence.create({
+            reportId,
+            fileName: f.filename,
+            originalName: basename(f.originalname).slice(0, 120),
+            mimeType: f.mimetype,
+            sizeBytes: f.size,
+          }),
+        ),
+      );
+      await this.audit.log({
+        actorUserId: user.id,
+        action: "EVIDENCE_UPLOADED",
+        entityType: "report",
+        entityId: reportId,
+        metadata: { count: saved.length },
+      });
+      return saved.map(toEvidenceView);
+    } catch (e) {
+      // Never leave rejected uploads on disk
+      await Promise.all(files.map((f) => rm(f.path, { force: true })));
+      throw e;
     }
   }
 
-  async getEvidenceFile(
+  /** Approved/superseded evidence is public; otherwise only owner + staff. */
+  async openEvidence(
+    user: AuthUser | null,
     reportId: string,
     evidenceId: string,
-    actor: AuthUser | null,
   ) {
-    const evidence = await this.evidenceRepository
-      .createQueryBuilder("evidence")
-      .innerJoinAndSelect("evidence.report", "report")
-      .where("evidence.id = :evidenceId", { evidenceId })
-      .andWhere("evidence.reportId = :reportId", { reportId })
-      .getOne();
+    const ev = await this.evidence.findOne({
+      where: { id: evidenceId, reportId },
+    });
+    const report =
+      ev && (await this.reports.findOne({ where: { id: reportId } }));
+    if (!ev || !report) throw new NotFoundException("Evidence not found");
 
-    if (!evidence || !evidence.report) {
+    if (!PUBLIC.includes(report.moderationStatus)) {
+      if (!user)
+        throw new UnauthorizedException("Log in to view this evidence");
+      if (!isStaff(user) && report.submittedById !== user.id)
+        throw new NotFoundException("Evidence not found");
+    }
+
+    const root = uploadDir();
+    const abs = resolve(root, ev.fileName);
+    if (!abs.startsWith(root + sep))
       throw new NotFoundException("Evidence not found");
-    }
-
-    const report = evidence.report;
-
-    const isModerator =
-      actor?.roles?.includes(Role.MODERATOR) ||
-      actor?.roles?.includes(Role.ADMIN);
-
-    const isOwner = actor?.id === report.submittedById;
-
-    const isPublic =
-      report.moderationStatus === ModerationStatus.APPROVED;
-
-    if (!isPublic && !isOwner && !isModerator) {
-      throw new NotFoundException("Evidence not found");
-    }
-
-    const validStoredFilename =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$/i;
-
-    if (!validStoredFilename.test(evidence.storedFilename)) {
-      throw new NotFoundException("Evidence file not found");
-    }
-
-    const filePath = join(
-      process.cwd(),
-      "storage",
-      "report-evidence",
-      evidence.storedFilename,
-    );
-
-    let fileBuffer: Buffer;
-
     try {
-      fileBuffer = await readFile(filePath);
+      await access(abs);
     } catch {
-      throw new NotFoundException("Evidence file not found");
+      throw new NotFoundException("Evidence file is missing");
     }
-
     return {
-      buffer: fileBuffer,
-      mimeType: evidence.mimeType,
-      originalFilename: evidence.originalFilename,
+      stream: createReadStream(abs),
+      mimeType: ev.mimeType,
+      isPublic: PUBLIC.includes(report.moderationStatus),
     };
+  }
+
+  // ------------------------------------------------- public history
+  /** Approved + superseded reports for a building. Contains NO personal data. */
+  async publicHistory(buildingId: string, q: HistoryQueryDto) {
+    const building = await this.buildings.findOne({
+      where: { id: buildingId },
+      select: { id: true },
+    });
+    if (!building) throw new NotFoundException("Building not found");
+
+    const qb = this.reports
+      .createQueryBuilder("r")
+      .innerJoinAndSelect("r.feature", "f")
+      .where("r.buildingId = :buildingId", { buildingId })
+      .andWhere("r.moderationStatus IN (:...pub)", { pub: PUBLIC })
+      .orderBy("r.observedAt", "DESC")
+      .addOrderBy("r.id", "ASC");
+    if (q.featureType)
+      qb.andWhere("f.featureType = :ft", { ft: q.featureType as FeatureType });
+
+    const [rows, total] = await qb
+      .skip(skipOf(q))
+      .take(q.limit)
+      .getManyAndCount();
+    const evidence = await this.evidenceFor(rows.map((r) => r.id));
+    const data: Paginated<unknown>["data"] = rows.map((r) => ({
+      reportId: r.id,
+      featureType: r.feature!.featureType,
+      observationStatus: r.observationStatus,
+      description: r.description,
+      observedAt: r.observedAt,
+      moderationStatus: r.moderationStatus,
+      verifiedAt: r.decidedAt,
+      evidence: (evidence.get(r.id) ?? []).map(toEvidenceView),
+    }));
+    return paginated(data, total, q);
+  }
+
+  // ------------------------------------------------------------ helpers
+  async evidenceFor(reportIds: string[]) {
+    const map = new Map<string, ReportEvidence[]>();
+    if (!reportIds.length) return map;
+    const rows = await this.evidence.find({
+      where: { reportId: In(reportIds) },
+      order: { uploadedAt: "ASC" },
+    });
+    for (const e of rows)
+      map.set(e.reportId, [...(map.get(e.reportId) ?? []), e]);
+    return map;
+  }
+
+  private async latestDecisions(reportIds: string[]) {
+    const map = new Map<
+      string,
+      { decision: string; reason: string | null; reviewedAt: Date }
+    >();
+    if (!reportIds.length) return map;
+    const rows = await this.verifications.find({
+      where: { reportId: In(reportIds) },
+      order: { reviewedAt: "ASC" },
+    });
+    for (const v of rows)
+      map.set(v.reportId, {
+        decision: v.decision,
+        reason: v.decisionReason,
+        reviewedAt: v.reviewedAt,
+      });
+    return map;
+  }
+
+  private async mustFind(id: string) {
+    const r = await this.reports.findOne({
+      where: { id },
+      relations: { feature: true, building: true, submittedBy: true },
+    });
+    if (!r) throw new NotFoundException("Report not found");
+    return r;
   }
 }

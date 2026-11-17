@@ -1,71 +1,63 @@
-
 import {
+  Body,
   Controller,
   Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
   Patch,
   Post,
-  Param,
   Query,
-  Body,
-  ParseUUIDPipe,
   UseGuards,
 } from "@nestjs/common";
-
+import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { Roles } from "@/common/decorators/roles.decorator";
+import { PaginationQueryDto } from "@/common/dto/pagination-query.dto";
 import { Role } from "@/common/enums/role.enum";
 import { JwtGuard, RolesGuard } from "@/common/guard";
 import { AuthUser } from "@/common/interfaces/auth-user.interface";
-
-import { ModerationService } from "@/modules/moderation/moderation.service";
-
 import {
   DecisionDto,
   ResolveDisputeDto,
   ReviewQueueQueryDto,
 } from "@/modules/moderation/dto/moderation.dto";
+import { ModerationService } from "@/modules/moderation/moderation.service";
 
-@Controller("admin")
+@ApiTags("Moderation")
+@ApiBearerAuth()
 @UseGuards(JwtGuard, RolesGuard)
 @Roles(Role.MODERATOR, Role.ADMIN)
+@Controller("admin")
 export class ModerationController {
-  constructor(
-    private readonly moderationService: ModerationService,
-  ) {}
+  constructor(private readonly moderation: ModerationService) {}
 
   @Get("reports")
-  getQueue(@Query() query: ReviewQueueQueryDto) {
-    return this.moderationService.getQueue(query);
+  queue(@Query() q: ReviewQueueQueryDto) {
+    return this.moderation.queue(q);
   }
 
   @Patch("reports/:id/decision")
   decide(
+    @CurrentUser() moderator: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: DecisionDto,
-    @CurrentUser() moderator: AuthUser,
   ) {
-    return this.moderationService.decide(
-      id,
-      dto,
-      moderator,
-    );
+    return this.moderation.decide(moderator, id, dto);
   }
 
   @Get("disputes")
-  getDisputes(@Query() query: ReviewQueueQueryDto) {
-    return this.moderationService.getDisputes(query);
+  disputes(@Query() q: PaginationQueryDto) {
+    return this.moderation.disputes(q);
   }
 
-  @Post("features/:id/resolve-dispute")
-  resolveDispute(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: ResolveDisputeDto,
+  @HttpCode(200)
+  @Post("features/:featureId/resolve-dispute")
+  resolve(
     @CurrentUser() moderator: AuthUser,
+    @Param("featureId", ParseUUIDPipe) featureId: string,
+    @Body() dto: ResolveDisputeDto,
   ) {
-    return this.moderationService.resolveDispute(
-      id,
-      dto,
-      moderator,
-    );
+    return this.moderation.resolveDispute(moderator, featureId, dto);
   }
 }

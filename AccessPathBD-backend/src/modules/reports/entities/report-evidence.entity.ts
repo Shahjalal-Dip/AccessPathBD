@@ -1,4 +1,3 @@
-
 import {
   Column,
   CreateDateColumn,
@@ -8,65 +7,33 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from "typeorm";
-
 import { Report } from "@/modules/reports/entities/report.entity";
-import { User } from "@/modules/users/entities/user.entity";
 
 @Entity("report_evidence")
-@Index(["reportId", "createdAt"])
 export class ReportEvidence {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
-  @Column({ type: "uuid", name: "report_id" })
+  @Index()
+  @Column({ type: "uuid" })
   reportId!: string;
 
   @ManyToOne(() => Report, { onDelete: "CASCADE", nullable: false })
   @JoinColumn({ name: "report_id" })
   report?: Report;
 
-  @Column({ type: "uuid", name: "uploaded_by_id" })
-  uploadedById!: string;
+  @Column({ length: 80 })
+  fileName!: string;
 
-  @ManyToOne(() => User, { onDelete: "RESTRICT", nullable: false })
-  @JoinColumn({ name: "uploaded_by_id" })
-  uploadedBy?: User;
+  @Column({ length: 120 })
+  originalName!: string;
 
-  @Column({
-    type: "varchar",
-    length: 255,
-    name: "original_filename",
-  })
-  originalFilename!: string;
-
-  @Column({
-    type: "varchar",
-    length: 255,
-    unique: true,
-    name: "stored_filename",
-  })
-  storedFilename!: string;
-
-  @Column({
-    type: "varchar",
-    length: 500,
-    name: "storage_path",
-  })
-  storagePath!: string;
-
-  @Column({
-    type: "varchar",
-    length: 50,
-    name: "mime_type",
-  })
+  @Column({ length: 40 })
   mimeType!: string;
 
-  @Column({ type: "integer", name: "size_bytes" })
+  @Column({ type: "int" })
   sizeBytes!: number;
 
-  @CreateDateColumn({
-    type: "timestamptz",
-    name: "created_at",
-  })
-  createdAt!: Date;
+  @CreateDateColumn({ type: "timestamptz" })
+  uploadedAt!: Date;
 }
