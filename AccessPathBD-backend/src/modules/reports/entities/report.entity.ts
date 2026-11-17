@@ -60,7 +60,6 @@ export class Report {
   @Column({ type: "text" })
   description!: string;
 
-  /** When the contributor actually saw the condition (not when they submitted). */
   @Column({ type: "timestamptz" })
   observedAt!: Date;
 
@@ -72,11 +71,9 @@ export class Report {
   })
   moderationStatus!: ModerationStatus;
 
-  /** Time of the latest moderation decision on this report. */
   @Column({ type: "timestamptz", nullable: true })
   decidedAt!: Date | null;
 
-  /** "submitted_at" in the proposal. */
   @CreateDateColumn({ type: "timestamptz" })
   createdAt!: Date;
 

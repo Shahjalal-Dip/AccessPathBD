@@ -27,6 +27,7 @@ export class DecisionDto {
   ])
   decision!: ModerationDecision;
 
+  /** Mandatory (10+ chars) to reject or ask for clarification; optional note on approval. */
   @Transform(trim)
   @ValidateIf((o) => o.decision !== ModerationDecision.APPROVED)
   @IsString()
@@ -36,21 +37,14 @@ export class DecisionDto {
 }
 
 export class ResolveDisputeDto {
-  @IsUUID() 
-  winningReportId!: string;
-
-  @Transform(trim) 
-  @IsString() 
-  @Length(10, 1000) 
-  reason!: string;
+  @IsUUID() winningReportId!: string;
+  @Transform(trim) @IsString() @Length(10, 1000) reason!: string;
 }
 
 export class ReviewQueueQueryDto extends PaginationQueryDto {
+  /** Defaults to PENDING (oldest first). Use ALL for every status (newest first). */
   @IsOptional()
   @IsIn([...Object.values(ModerationStatus), "ALL"])
   status?: ModerationStatus | "ALL";
-
-  @IsOptional() 
-  @IsUUID() 
-  buildingId?: string;
+  @IsOptional() @IsUUID() buildingId?: string;
 }

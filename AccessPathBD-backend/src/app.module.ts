@@ -1,18 +1,25 @@
+
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { BullModule } from "@nestjs/bull";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+
 import { PostgresDatabaseProviderModule } from "@/providers/database/postgres/provider.module";
 import { RedisCacheModule } from "@/providers/cache/redis/redis-cache.module";
+
 import { AppController } from "@/src/app.controller";
 import { AppService } from "@/src/app.service";
 import { appConfig } from "@/config/app.config";
+
 import { AuditModule } from "@/modules/audit/audit.module";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { MailModule } from "@/modules/mail/mail.service";
 import { UsersModule } from "@/modules/users/users.module";
 import { FeaturesModule } from "@/modules/features/features.module";
+import { ReportsModule } from "@/modules/reports/reports.module";
+import { ModerationModule } from "@/modules/moderation/moderation.module";
+
 import { BuildingsModule } from "./modules/buildings/buildings.module";
 import { ReviewsModule } from "@/modules/reviews/reviews.module";
 import { AnalyticsModule } from "@/modules/analytics/analytics.module";
@@ -37,10 +44,15 @@ import { SavedModule } from "@/modules/saved/saved.module";
     BuildingsModule,
     ReviewsModule,
     FeaturesModule,
+    ReportsModule,
+    ModerationModule,
     AnalyticsModule,
     SavedModule
   ],
   controllers: [AppController],
-  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}
