@@ -40,12 +40,12 @@ export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
   @UseGuards(JwtGuard)
+  @ApiBody({type: CreateReportDto})
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateReportDto) {
     return this.reports.create(user, dto);
   }
 
-  // NOTE: declared before ":id" so "mine" is not parsed as an id
   @UseGuards(JwtGuard)
   @Get("mine")
   mine(@CurrentUser() user: AuthUser, @Query() q: ListMyReportsQueryDto) {
@@ -59,6 +59,7 @@ export class ReportsController {
   }
 
   @UseGuards(JwtGuard)
+  @ApiBody({type: UpdateReportDto})
   @Patch(":id")
   update(
     @CurrentUser() user: AuthUser,
@@ -104,7 +105,6 @@ export class ReportsController {
     return this.reports.addEvidence(user, id, files);
   }
 
-  /** Public for approved reports; owner/staff only while the report is open. */
   @UseGuards(OptionalJwtGuard)
   @Get(":id/evidence/:evidenceId/file")
   async file(
