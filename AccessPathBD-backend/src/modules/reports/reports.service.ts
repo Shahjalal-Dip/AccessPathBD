@@ -60,7 +60,7 @@ export class ReportsService {
     private readonly audit: AuditService,
   ) {}
 
-  // ---------------------------------------------------------------- create
+
   async create(user: AuthUser, dto: CreateReportDto) {
     const observedAt = new Date(dto.observedAt);
     if (observedAt.getTime() > Date.now() + 5 * 60_000)
@@ -119,7 +119,7 @@ export class ReportsService {
     });
   }
 
-  // ------------------------------------------------------------- read
+
   async listMine(user: AuthUser, q: ListMyReportsQueryDto) {
     const [rows, total] = await this.reports.findAndCount({
       where: {
@@ -145,7 +145,6 @@ export class ReportsService {
   async getOne(user: AuthUser, id: string) {
     const report = await this.mustFind(id);
     const staff = isStaff(user);
-    // Hide existence of other people's reports instead of returning 403
     if (!staff && report.submittedById !== user.id)
       throw new NotFoundException("Report not found");
 
@@ -163,7 +162,6 @@ export class ReportsService {
 
     return {
       ...toReportView(report, evidence),
-      // submitter identity is for staff only; contributors never see other people's details
       ...(staff && report.submittedBy
         ? {
             submittedBy: {
@@ -177,7 +175,6 @@ export class ReportsService {
         decision: v.decision,
         reason: v.decisionReason,
         reviewedAt: v.reviewedAt,
-        // moderator identity is visible to staff only
         ...(staff
           ? {
               reviewedBy: {
@@ -190,7 +187,7 @@ export class ReportsService {
     };
   }
 
-  // ------------------------------------------------------------ update
+
   async update(user: AuthUser, id: string, dto: UpdateReportDto) {
     if (
       dto.observedAt &&
@@ -214,7 +211,6 @@ export class ReportsService {
         report.observationStatus = dto.observationStatus;
       if (dto.description) report.description = dto.description;
       if (dto.observedAt) report.observedAt = new Date(dto.observedAt);
-      // After a clarification request, an edit puts the report back in the queue
       report.moderationStatus = ModerationStatus.PENDING;
       await em.save(report);
       await this.audit.log(
@@ -258,7 +254,6 @@ export class ReportsService {
     });
   }
 
-  // ---------------------------------------------------------- evidence
   async addEvidence(
     user: AuthUser,
     reportId: string,
@@ -283,7 +278,6 @@ export class ReportsService {
           `A report can have at most ${appConfig.env.UPLOAD_MAX_FILES_PER_REPORT} images`,
         );
 
-      // The client-declared Content-Type is not trustworthy: verify the real bytes.
       for (const f of files) {
         const real = await detectImageTypeFromFile(f.path);
         if (!real || real.mime !== f.mimetype)
@@ -312,13 +306,11 @@ export class ReportsService {
       });
       return saved.map(toEvidenceView);
     } catch (e) {
-      // Never leave rejected uploads on disk
       await Promise.all(files.map((f) => rm(f.path, { force: true })));
       throw e;
     }
   }
 
-  /** Approved/superseded evidence is public; otherwise only owner + staff. */
   async openEvidence(
     user: AuthUser | null,
     reportId: string,
@@ -354,8 +346,6 @@ export class ReportsService {
     };
   }
 
-  // ------------------------------------------------- public history
-  /** Approved + superseded reports for a building. Contains NO personal data. */
   async publicHistory(buildingId: string, q: HistoryQueryDto) {
     const building = await this.buildings.findOne({
       where: { id: buildingId },
@@ -391,7 +381,6 @@ export class ReportsService {
     return paginated(data, total, q);
   }
 
-  // ------------------------------------------------------------ helpers
   async evidenceFor(reportIds: string[]) {
     const map = new Map<string, ReportEvidence[]>();
     if (!reportIds.length) return map;
