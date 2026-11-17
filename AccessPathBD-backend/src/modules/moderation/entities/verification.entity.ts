@@ -11,7 +11,6 @@ import { ModerationDecision } from "@/common/enums/accessibility.enums";
 import { Report } from "@/modules/reports/entities/report.entity";
 import { User } from "@/modules/users/entities/user.entity";
 
-/** Append-only moderation history. Rows are never updated or deleted. */
 @Entity("verifications")
 export class Verification {
   @PrimaryGeneratedColumn("uuid")
@@ -42,7 +41,6 @@ export class Verification {
   @Column({ type: "text", nullable: true })
   decisionReason!: string | null;
 
-  /** "reviewed_at" in the proposal. */
   @CreateDateColumn({ type: "timestamptz" })
   reviewedAt!: Date;
 }

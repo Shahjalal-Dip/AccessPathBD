@@ -53,7 +53,6 @@ export class ModerationService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Review queue: oldest first so nothing waits forever. */
   async queue(q: ReviewQueueQueryDto) {
     const qb = this.reports
       .createQueryBuilder("r")
@@ -64,7 +63,6 @@ export class ModerationService {
       .addSelect(["u.id", "u.fullName"])
       .orderBy(
         "r.createdAt",
-        // oldest first while reviewing; newest first when browsing everything
         (q.status ?? ModerationStatus.PENDING) === ModerationStatus.PENDING
           ? "ASC"
           : "DESC",
@@ -98,11 +96,6 @@ export class ModerationService {
     );
   }
 
-  /**
-   * Record a decision. Everything below happens in ONE transaction:
-   * report row locked -> verification appended -> report status updated ->
-   * feature re-derived -> audit entry. Either all of it happens or none.
-   */
   async decide(moderator: AuthUser, reportId: string, dto: DecisionDto) {
     return this.dataSource.transaction(async (em) => {
       const report = await em.findOne(Report, {
@@ -151,7 +144,6 @@ export class ModerationService {
     });
   }
 
-  /** Features whose recent approved reports contradict each other. */
   async disputes(q: PaginationQueryDto) {
     const [features, total] = await this.features.findAndCount({
       where: { verificationStatus: VerificationStatus.DISPUTED },
@@ -183,10 +175,6 @@ export class ModerationService {
     return paginated(data, total, q);
   }
 
-  /**
-   * A moderator picks the report they trust. Conflicting approved reports that
-   * disagree with it become SUPERSEDED (kept as history, no longer counted).
-   */
   async resolveDispute(
     moderator: AuthUser,
     featureId: string,

@@ -15,6 +15,7 @@ import {
   ModerationDecision,
   ModerationStatus,
 } from "@/common/enums/accessibility.enums";
+import { ApiProperty } from "@nestjs/swagger";
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
@@ -25,26 +26,38 @@ export class DecisionDto {
     ModerationDecision.REJECTED,
     ModerationDecision.NEEDS_CLARIFICATION,
   ])
+  @ApiProperty()
   decision!: ModerationDecision;
 
-  /** Mandatory (10+ chars) to reject or ask for clarification; optional note on approval. */
   @Transform(trim)
   @ValidateIf((o) => o.decision !== ModerationDecision.APPROVED)
   @IsString()
   @MinLength(10)
   @MaxLength(1000)
+  @ApiProperty()
   reason?: string;
 }
 
 export class ResolveDisputeDto {
-  @IsUUID() winningReportId!: string;
-  @Transform(trim) @IsString() @Length(10, 1000) reason!: string;
+  @IsUUID()
+  @ApiProperty()
+  winningReportId!: string;
+
+  @Transform(trim) 
+  @IsString() 
+  @Length(10, 1000) 
+  @ApiProperty()
+  reason!: string;
 }
 
 export class ReviewQueueQueryDto extends PaginationQueryDto {
-  /** Defaults to PENDING (oldest first). Use ALL for every status (newest first). */
   @IsOptional()
   @IsIn([...Object.values(ModerationStatus), "ALL"])
+  @ApiProperty()
   status?: ModerationStatus | "ALL";
-  @IsOptional() @IsUUID() buildingId?: string;
+
+  @IsOptional() 
+  @IsUUID() 
+  @ApiProperty()
+  buildingId?: string;
 }

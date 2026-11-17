@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "@/common/decorators/current-user.decorator";
 import { Roles } from "@/common/decorators/roles.decorator";
 import { PaginationQueryDto } from "@/common/dto/pagination-query.dto";
@@ -38,6 +38,7 @@ export class ModerationController {
   }
 
   @Patch("reports/:id/decision")
+  @ApiBody({type: DecisionDto})
   decide(
     @CurrentUser() moderator: AuthUser,
     @Param("id", ParseUUIDPipe) id: string,
@@ -52,6 +53,7 @@ export class ModerationController {
   }
 
   @HttpCode(200)
+  @ApiBody({type: ResolveDisputeDto})
   @Post("features/:featureId/resolve-dispute")
   resolve(
     @CurrentUser() moderator: AuthUser,
